@@ -66,10 +66,11 @@ namespace donut::render
                 nvrhi::RasterCullMode cullMode : 2;
                 bool frontCounterClockwise : 1;
                 bool reverseDepth : 1;
+                bool drawPoints : 1;
             } bits;
             uint32_t value;
 
-            static constexpr size_t Count = 1 << 7;
+            static constexpr size_t Count = 1 << 8;
         };
 
         class Context : public GeometryPassContext
@@ -150,7 +151,7 @@ namespace donut::render
 
         [[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;
         void SetupView(GeometryPassContext& context, nvrhi::ICommandList* commandList, const engine::IView* view, const engine::IView* viewPrev) override;
-        bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state) override;
+        bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state) override;
         void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) override;
         void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override { }
     };

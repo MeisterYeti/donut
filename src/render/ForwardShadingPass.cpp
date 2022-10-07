@@ -192,6 +192,7 @@ nvrhi::BindingSetHandle ForwardShadingPass::CreateLightBindingSet(nvrhi::ITextur
 nvrhi::GraphicsPipelineHandle ForwardShadingPass::CreateGraphicsPipeline(PipelineKey key, nvrhi::IFramebuffer* framebuffer)
 {
     nvrhi::GraphicsPipelineDesc pipelineDesc;
+    pipelineDesc.primType = key.bits.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
     pipelineDesc.inputLayout = m_InputLayout;
     pipelineDesc.VS = m_VertexShader;
     pipelineDesc.GS = m_GeometryShader;
@@ -415,7 +416,7 @@ ViewType::Enum ForwardShadingPass::GetSupportedViewTypes() const
     return m_SupportedViewTypes;
 }
 
-bool ForwardShadingPass::SetupMaterial(GeometryPassContext& abstractContext, const Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state)
+bool ForwardShadingPass::SetupMaterial(GeometryPassContext& abstractContext, const Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state)
 {
     auto& context = static_cast<Context&>(abstractContext);
 
@@ -433,6 +434,7 @@ bool ForwardShadingPass::SetupMaterial(GeometryPassContext& abstractContext, con
     PipelineKey key = context.keyTemplate;
     key.bits.cullMode = cullMode;
     key.bits.domain = material->domain;
+    key.bits.drawPoints = primType == nvrhi::PrimitiveType::PointList;
 
     nvrhi::GraphicsPipelineHandle& pipeline = m_Pipelines[key.value];
     

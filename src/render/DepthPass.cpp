@@ -125,6 +125,7 @@ std::shared_ptr<MaterialBindingCache> DepthPass::CreateMaterialBindingCache(Comm
 nvrhi::GraphicsPipelineHandle DepthPass::CreateGraphicsPipeline(PipelineKey key, nvrhi::IFramebuffer* framebuffer)
 {
     nvrhi::GraphicsPipelineDesc pipelineDesc;
+    pipelineDesc.primType = key.bits.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
     pipelineDesc.inputLayout = m_InputLayout;
     pipelineDesc.VS = m_VertexShader;
     pipelineDesc.renderState.rasterState.depthBias = m_DepthBias;
@@ -167,12 +168,13 @@ void DepthPass::SetupView(GeometryPassContext& abstractContext, nvrhi::ICommandL
     context.keyTemplate.bits.reverseDepth = view->IsReverseDepth();
 }
 
-bool DepthPass::SetupMaterial(GeometryPassContext& abstractContext, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state)
+bool DepthPass::SetupMaterial(GeometryPassContext& abstractContext, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state)
 {
     auto& context = static_cast<Context&>(abstractContext);
 
     PipelineKey key = context.keyTemplate;
     key.bits.cullMode = cullMode;
+    key.bits.drawPoints = primType == nvrhi::PrimitiveType::PointList;
 
     if (material->domain == MaterialDomain::AlphaTested && material->baseOrDiffuseTexture && material->baseOrDiffuseTexture->texture)
     {

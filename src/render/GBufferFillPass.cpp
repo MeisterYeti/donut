@@ -153,6 +153,7 @@ void GBufferFillPass::CreateViewBindings(nvrhi::BindingLayoutHandle& layout, nvr
 nvrhi::GraphicsPipelineHandle GBufferFillPass::CreateGraphicsPipeline(PipelineKey key, nvrhi::IFramebuffer* sampleFramebuffer)
 {
     nvrhi::GraphicsPipelineDesc pipelineDesc;
+    pipelineDesc.primType = key.bits.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
     pipelineDesc.inputLayout = m_InputLayout;
     pipelineDesc.VS = m_VertexShader;
     pipelineDesc.GS = m_GeometryShader;
@@ -242,12 +243,13 @@ void GBufferFillPass::SetupView(GeometryPassContext& abstractContext, nvrhi::ICo
     context.keyTemplate.bits.reverseDepth = view->IsReverseDepth();
 }
 
-bool GBufferFillPass::SetupMaterial(GeometryPassContext& abstractContext, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state)
+bool GBufferFillPass::SetupMaterial(GeometryPassContext& abstractContext, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state)
 {
     auto& context = static_cast<Context&>(abstractContext);
     
     PipelineKey key = context.keyTemplate;
     key.bits.cullMode = cullMode;
+    key.bits.drawPoints = primType == nvrhi::PrimitiveType::PointList;
 
     switch (material->domain)
     {

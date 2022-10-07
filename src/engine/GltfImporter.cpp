@@ -430,7 +430,7 @@ bool GltfImporter::Load(
         {
             const cgltf_primitive& prim = mesh.primitives[prim_idx];
 
-            if (prim.type != cgltf_primitive_type_triangles ||
+            if ((prim.type != cgltf_primitive_type_triangles && prim.type != cgltf_primitive_type_points) ||
                 prim.attributes_count == 0)
                 continue;
 
@@ -497,7 +497,7 @@ bool GltfImporter::Load(
         {
             const cgltf_primitive& prim = mesh.primitives[prim_idx];
 
-            if (prim.type != cgltf_primitive_type_triangles ||
+            if ((prim.type != cgltf_primitive_type_triangles && prim.type != cgltf_primitive_type_points) ||
                 prim.attributes_count == 0)
                 continue;
 
@@ -697,7 +697,7 @@ bool GltfImporter::Load(
                 }
             }
 
-            if (normals && texcoords && (!tangents || c_ForceRebuildTangents))
+            if (normals && texcoords && (!tangents || c_ForceRebuildTangents) && prim.type == cgltf_primitive_type_triangles)
             {
                 auto [positionSrc, positionStride] = cgltf_buffer_iterator(positions, sizeof(float) * 3);
                 auto [texcoordSrc, texcoordStride] = cgltf_buffer_iterator(texcoords, sizeof(float) * 2);
@@ -870,6 +870,15 @@ bool GltfImporter::Load(
             }
 
             auto geometry = m_SceneTypeFactory->CreateMeshGeometry();
+            switch(prim.type)
+            {
+                case cgltf_primitive_type_points:
+                    geometry->primType = nvrhi::PrimitiveType::PointList;
+                    break;
+                default:
+                    geometry->primType = nvrhi::PrimitiveType::TriangleList;
+                    break;
+            }
             geometry->material = materials[prim.material];
             geometry->indexOffsetInMesh = minfo->totalIndices;
             geometry->vertexOffsetInMesh = minfo->totalVertices;

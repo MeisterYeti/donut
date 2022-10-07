@@ -60,7 +60,7 @@ namespace donut::render
     public:
         [[nodiscard]] virtual engine::ViewType::Enum GetSupportedViewTypes() const = 0;
         virtual void SetupView(GeometryPassContext& context, nvrhi::ICommandList* commandList, const engine::IView* view, const engine::IView* viewPrev) = 0;
-        virtual bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state) = 0;
+        virtual bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state) = 0;
         virtual void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) = 0;
         virtual void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) = 0;
         virtual ~IGeometryPass() = default;
