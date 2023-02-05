@@ -242,6 +242,15 @@ int NativeFileSystem::enumerateFiles(const std::filesystem::path& path, const st
     return numEntries;
 }
 
+std::filesystem::path NativeFileSystem::getNativePath(const std::filesystem::path& name)
+{
+    if(fileExists(name) || folderExists(name))
+    {
+        return std::filesystem::canonical(name);
+    }
+    return {};
+}
+
 int NativeFileSystem::enumerateDirectories(const std::filesystem::path& path, enumerate_callback_t callback, bool allowDuplicates)
 {
     (void)allowDuplicates;
@@ -284,6 +293,11 @@ int RelativeFileSystem::enumerateFiles(const std::filesystem::path& path, const 
 int RelativeFileSystem::enumerateDirectories(const std::filesystem::path& path, enumerate_callback_t callback, bool allowDuplicates)
 {
     return m_UnderlyingFS->enumerateDirectories(m_BasePath / path.relative_path(), callback, allowDuplicates);
+}
+
+std::filesystem::path RelativeFileSystem::getNativePath(const std::filesystem::path& name)
+{
+    return m_UnderlyingFS->getNativePath(m_BasePath / name.relative_path());
 }
 
 void RootFileSystem::mount(const std::filesystem::path& path, std::shared_ptr<IFileSystem> fs)
@@ -420,6 +434,19 @@ int RootFileSystem::enumerateDirectories(const std::filesystem::path& path, enum
     }
 
     return status::PathNotFound;
+}
+
+std::filesystem::path RootFileSystem::getNativePath(const std::filesystem::path& name)
+{
+    std::filesystem::path relativePath;
+    IFileSystem* fs = nullptr;
+
+    if (findMountPoint(name, &relativePath, &fs))
+    {
+        return fs->getNativePath(relativePath);
+    }
+
+    return {};
 }
 
 static void appendPatternToRegex(const std::string& pattern, std::stringstream& regex)
