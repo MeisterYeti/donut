@@ -80,7 +80,7 @@ namespace donut::app
     public:
         ImGui_Renderer(DeviceManager *devManager);
         ~ImGui_Renderer();
-        bool Init(std::shared_ptr<engine::ShaderFactory> shaderFactory);
+        virtual bool Init(std::shared_ptr<engine::ShaderFactory> shaderFactory);
         
 		ImFont* LoadFont(vfs::IFileSystem& fs, std::filesystem::path const& fontFile, float fontSize);
 
