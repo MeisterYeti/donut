@@ -299,6 +299,14 @@ namespace donut::math
 		{ return sqrt(lengthSquared(a)); }
 
 	template <typename T, int n>
+	T distanceSquared(vector<T, n> const & a, vector<T, n> const & b)
+		{ return lengthSquared(b - a); }
+
+	template <typename T, int n>
+	T distance(vector<T, n> const & a, vector<T, n> const & b)
+		{ return sqrt(distanceSquared(a, b)); }
+
+	template <typename T, int n>
 	vector<T, n> normalize(vector<T, n> const & a)
 		{ return a / length(a); }
 
