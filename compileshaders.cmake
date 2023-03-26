@@ -73,7 +73,7 @@ function(donut_compile_shaders)
            -I ${DONUT_SHADER_INCLUDE_DIR}
            --compiler "${DXC_PATH}"
            --outputExt .bin
-           --shaderModel 6_5
+           --shaderModel 6_6
            ${useApiArgument})
 
         separate_arguments(params_COMPILER_OPTIONS_DXIL NATIVE_COMMAND "${params_COMPILER_OPTIONS_DXIL}")
