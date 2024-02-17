@@ -45,6 +45,8 @@ cmake_dependent_option(DONUT_WITH_DX11 "Enable the DX11 version of Donut" ON "WI
 cmake_dependent_option(DONUT_WITH_DX12 "Enable the DX12 version of Donut" ON "WIN32" OFF)
 option(DONUT_WITH_VULKAN "Enable the Vulkan version of Donut" ON)
 
+option(DONUT_WITH_STATIC_SHADERS "Build Donut with statically linked shaders" OFF)
+
 option(DONUT_WITH_AUDIO "Include Audio features (XAudio2)" OFF)
 option(DONUT_WITH_LZ4 "Include LZ4" ON)
 option(DONUT_WITH_MINIZ "Include miniz (support for zip archives)" ON)
@@ -55,6 +57,10 @@ option(DONUT_WITH_UNIT_TESTS "Donut unit-tests (see CMake/CTest documentation)" 
 add_subdirectory(thirdparty)
 
 if (NOT TARGET ShaderMake)
+    option(SHADERMAKE_FIND_FXC "" "${DONUT_WITH_DX11}")
+    option(SHADERMAKE_FIND_DXC "" "${DONUT_WITH_DX12}")
+    option(SHADERMAKE_FIND_DXC_SPIRV "" "${DONUT_WITH_VULKAN}")
+
     add_subdirectory(ShaderMake)
 endif()
 
@@ -62,7 +68,6 @@ if (DONUT_WITH_NVRHI)
     set(NVRHI_WITH_DX11 "${DONUT_WITH_DX11}" CACHE BOOL "" FORCE)
     set(NVRHI_WITH_DX12 "${DONUT_WITH_DX12}" CACHE BOOL "" FORCE)
     set(NVRHI_WITH_VULKAN "${DONUT_WITH_VULKAN}" CACHE BOOL "" FORCE)
-    option(NVRHI_WITH_SHADER_COMPILER "" OFF)
 
     add_subdirectory(nvrhi)
 

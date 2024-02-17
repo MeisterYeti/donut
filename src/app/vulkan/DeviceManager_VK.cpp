@@ -56,12 +56,14 @@ freely, subject to the following restrictions:
 #include <nvrhi/vulkan.h>
 #include <nvrhi/validation.h>
 
-using namespace donut;
-using namespace donut::app;
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
+#include <vulkan/vulkan.hpp>
 
 // Define the Vulkan dynamic dispatcher - this needs to occur in exactly one cpp file in the program.
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
+using namespace donut;
+using namespace donut::app;
 
 class DeviceManager_VK : public DeviceManager
 {
@@ -79,8 +81,12 @@ public:
         return nvrhi::GraphicsAPI::VULKAN;
     }
 
+    bool EnumerateAdapters(std::vector<AdapterInfo>& outAdapters) override;
+
 protected:
-    bool CreateDeviceAndSwapChain() override;
+    bool CreateInstanceInternal() override;
+    bool CreateDevice() override;
+    bool CreateSwapChain() override;
     void DestroyDeviceAndSwapChain() override;
 
     void ResizeSwapChain() override
@@ -179,7 +185,6 @@ private:
         { },
         // device
         { 
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             VK_KHR_MAINTENANCE1_EXTENSION_NAME
         },
     };
@@ -201,7 +206,8 @@ private:
             VK_NV_MESH_SHADER_EXTENSION_NAME,
             VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME,
             VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-            VK_KHR_MAINTENANCE_4_EXTENSION_NAME
+            VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
+            VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME
         },
     };
 
@@ -234,6 +240,7 @@ private:
 
     vk::SurfaceFormatKHR m_SwapChainFormat;
     vk::SwapchainKHR m_SwapChain;
+    bool m_SwapChainMutableFormatSupported = false;
 
     struct SwapChainImage
     {
@@ -248,12 +255,15 @@ private:
     nvrhi::DeviceHandle m_ValidationLayer;
 
     nvrhi::CommandListHandle m_BarrierCommandList;
-    vk::Semaphore m_PresentSemaphore;
+    std::vector<vk::Semaphore> m_PresentSemaphores;
+    uint32_t m_PresentSemaphoreIndex = 0;
 
     std::queue<nvrhi::EventQueryHandle> m_FramesInFlight;
     std::vector<nvrhi::EventQueryHandle> m_QueryPool;
 
     bool m_BufferDeviceAddressSupported = false;
+
+    vk::DynamicLoader m_dynamicLoader;
 
 private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL vulkanDebugCallback(
@@ -308,19 +318,23 @@ static std::vector<T> setToVector(const std::unordered_set<T>& set)
 
 bool DeviceManager_VK::createInstance()
 {
-    if (!glfwVulkanSupported())
+    if (!m_DeviceParams.headlessDevice)
     {
-        return false;
-    }
+        if (!glfwVulkanSupported())
+        {
+            log::error("GLFW reports that Vulkan is not supported. Perhaps missing a call to glfwInit()?");
+            return false;
+        }
 
-    // add any extensions required by GLFW
-    uint32_t glfwExtCount;
-    const char **glfwExt = glfwGetRequiredInstanceExtensions(&glfwExtCount);
-    assert(glfwExt);
+        // add any extensions required by GLFW
+        uint32_t glfwExtCount;
+        const char **glfwExt = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+        assert(glfwExt);
 
-    for(uint32_t i = 0; i < glfwExtCount; i++)
-    {
-        enabledExtensions.instance.insert(std::string(glfwExt[i]));
+        for(uint32_t i = 0; i < glfwExtCount; i++)
+        {
+            enabledExtensions.instance.insert(std::string(glfwExt[i]));
+        }
     }
 
     // add instance extensions requested by the user
@@ -414,7 +428,7 @@ bool DeviceManager_VK::createInstance()
 
     if (res != vk::Result::eSuccess)
     {
-        log::error("Call to vkEnumerateInstanceVersion failed, error code = %s", nvrhi::vulkan::resultToString(res));
+        log::error("Call to vkEnumerateInstanceVersion failed, error code = %s", nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
 
@@ -447,7 +461,7 @@ bool DeviceManager_VK::createInstance()
     res = vk::createInstance(&info, nullptr, &m_VulkanInstance);
     if (res != vk::Result::eSuccess)
     {
-        log::error("Failed to create a Vulkan instance, error code = %s", nvrhi::vulkan::resultToString(res));
+        log::error("Failed to create a Vulkan instance, error code = %s", nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
 
@@ -472,10 +486,23 @@ void DeviceManager_VK::installDebugCallback()
 
 bool DeviceManager_VK::pickPhysicalDevice()
 {
-    vk::Format requestedFormat = nvrhi::vulkan::convertFormat(m_DeviceParams.swapChainFormat);
+    VkFormat requestedFormat = nvrhi::vulkan::convertFormat(m_DeviceParams.swapChainFormat);
     vk::Extent2D requestedExtent(m_DeviceParams.backBufferWidth, m_DeviceParams.backBufferHeight);
 
     auto devices = m_VulkanInstance.enumeratePhysicalDevices();
+
+    int firstDevice = 0;
+    int lastDevice = int(devices.size()) - 1;
+    if (m_DeviceParams.adapterIndex >= 0)
+    {
+        if (m_DeviceParams.adapterIndex > lastDevice)
+        {
+            log::error("The specified Vulkan physical device %d does not exist.", m_DeviceParams.adapterIndex);
+            return false;
+        }
+        firstDevice = m_DeviceParams.adapterIndex;
+        lastDevice = m_DeviceParams.adapterIndex;
+    }
 
     // Start building an error message in case we cannot find a device.
     std::stringstream errorStream;
@@ -484,9 +511,10 @@ bool DeviceManager_VK::pickPhysicalDevice()
     // build a list of GPUs
     std::vector<vk::PhysicalDevice> discreteGPUs;
     std::vector<vk::PhysicalDevice> otherGPUs;
-    for(const auto& dev : devices)
+    for (int deviceIndex = firstDevice; deviceIndex <= lastDevice; ++deviceIndex)
     {
-        auto prop = dev.getProperties();
+        vk::PhysicalDevice const& dev = devices[deviceIndex];
+        vk::PhysicalDeviceProperties prop = dev.getProperties();
 
         errorStream << std::endl << prop.deviceName.data() << ":";
 
@@ -523,48 +551,6 @@ bool DeviceManager_VK::pickPhysicalDevice()
             deviceIsGood = false;
         }
 
-        // check that this device supports our intended swap chain creation parameters
-        auto surfaceCaps = dev.getSurfaceCapabilitiesKHR(m_WindowSurface);
-        auto surfaceFmts = dev.getSurfaceFormatsKHR(m_WindowSurface);
-        auto surfacePModes = dev.getSurfacePresentModesKHR(m_WindowSurface);
-
-        if (surfaceCaps.minImageCount > m_DeviceParams.swapChainBufferCount ||
-            (surfaceCaps.maxImageCount < m_DeviceParams.swapChainBufferCount && surfaceCaps.maxImageCount > 0))
-        {
-            errorStream << std::endl << "  - cannot support the requested swap chain image count:";
-            errorStream << " requested " << m_DeviceParams.swapChainBufferCount << ", available " << surfaceCaps.minImageCount << " - " << surfaceCaps.maxImageCount;
-            deviceIsGood = false;
-        }
-
-        if (surfaceCaps.minImageExtent.width > requestedExtent.width ||
-            surfaceCaps.minImageExtent.height > requestedExtent.height ||
-            surfaceCaps.maxImageExtent.width < requestedExtent.width ||
-            surfaceCaps.maxImageExtent.height < requestedExtent.height)
-        {
-            errorStream << std::endl << "  - cannot support the requested swap chain size:";
-            errorStream << " requested " << requestedExtent.width << "x" << requestedExtent.height << ", ";
-            errorStream << " available " << surfaceCaps.minImageExtent.width << "x" << surfaceCaps.minImageExtent.height;
-            errorStream << " - " << surfaceCaps.maxImageExtent.width << "x" << surfaceCaps.maxImageExtent.height;
-            deviceIsGood = false;
-        }
-
-        bool surfaceFormatPresent = false;
-        for (const vk::SurfaceFormatKHR& surfaceFmt : surfaceFmts)
-        {
-            if (surfaceFmt.format == requestedFormat)
-            {
-                surfaceFormatPresent = true;
-                break;
-            }
-        }
-
-        if (!surfaceFormatPresent)
-        {
-            // can't create a swap chain using the format requested
-            errorStream << std::endl << "  - does not support the requested swap chain format";
-            deviceIsGood = false;
-        }
-
         if (!findQueueFamilies(dev))
         {
             // device doesn't have all the queue families we need
@@ -572,12 +558,57 @@ bool DeviceManager_VK::pickPhysicalDevice()
             deviceIsGood = false;
         }
 
-        // check that we can present from the graphics queue
-        uint32_t canPresent = dev.getSurfaceSupportKHR(m_GraphicsQueueFamily, m_WindowSurface);
-        if (!canPresent)
+        if (m_WindowSurface)
         {
-            errorStream << std::endl << "  - cannot present";
-            deviceIsGood = false;
+            // check that this device supports our intended swap chain creation parameters
+            auto surfaceCaps = dev.getSurfaceCapabilitiesKHR(m_WindowSurface);
+            auto surfaceFmts = dev.getSurfaceFormatsKHR(m_WindowSurface);
+            auto surfacePModes = dev.getSurfacePresentModesKHR(m_WindowSurface);
+
+            if (surfaceCaps.minImageCount > m_DeviceParams.swapChainBufferCount ||
+                (surfaceCaps.maxImageCount < m_DeviceParams.swapChainBufferCount && surfaceCaps.maxImageCount > 0))
+            {
+                errorStream << std::endl << "  - cannot support the requested swap chain image count:";
+                errorStream << " requested " << m_DeviceParams.swapChainBufferCount << ", available " << surfaceCaps.minImageCount << " - " << surfaceCaps.maxImageCount;
+                deviceIsGood = false;
+            }
+
+            if (surfaceCaps.minImageExtent.width > requestedExtent.width ||
+                surfaceCaps.minImageExtent.height > requestedExtent.height ||
+                surfaceCaps.maxImageExtent.width < requestedExtent.width ||
+                surfaceCaps.maxImageExtent.height < requestedExtent.height)
+            {
+                errorStream << std::endl << "  - cannot support the requested swap chain size:";
+                errorStream << " requested " << requestedExtent.width << "x" << requestedExtent.height << ", ";
+                errorStream << " available " << surfaceCaps.minImageExtent.width << "x" << surfaceCaps.minImageExtent.height;
+                errorStream << " - " << surfaceCaps.maxImageExtent.width << "x" << surfaceCaps.maxImageExtent.height;
+                deviceIsGood = false;
+            }
+
+            bool surfaceFormatPresent = false;
+            for (const vk::SurfaceFormatKHR& surfaceFmt : surfaceFmts)
+            {
+                if (surfaceFmt.format == vk::Format(requestedFormat))
+                {
+                    surfaceFormatPresent = true;
+                    break;
+                }
+            }
+
+            if (!surfaceFormatPresent)
+            {
+                // can't create a swap chain using the format requested
+                errorStream << std::endl << "  - does not support the requested swap chain format";
+                deviceIsGood = false;
+            }
+
+            // check that we can present from the graphics queue
+            uint32_t canPresent = dev.getSurfaceSupportKHR(m_GraphicsQueueFamily, m_WindowSurface);
+            if (!canPresent)
+            {
+                errorStream << std::endl << "  - cannot present";
+                deviceIsGood = false;
+            }
         }
 
         if (!deviceIsGood)
@@ -586,7 +617,9 @@ bool DeviceManager_VK::pickPhysicalDevice()
         if (prop.deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
         {
             discreteGPUs.push_back(dev);
-        } else {
+        }
+        else
+        {
             otherGPUs.push_back(dev);
         }
     }
@@ -658,7 +691,7 @@ bool DeviceManager_VK::findQueueFamilies(vk::PhysicalDevice physicalDevice)
     }
 
     if (m_GraphicsQueueFamily == -1 || 
-        m_PresentQueueFamily == -1 ||
+        m_PresentQueueFamily == -1 && !m_DeviceParams.headlessDevice ||
         (m_ComputeQueueFamily == -1 && m_DeviceParams.enableComputeQueue) || 
         (m_TransferQueueFamily == -1 && m_DeviceParams.enableCopyQueue))
     {
@@ -677,6 +710,9 @@ bool DeviceManager_VK::createDevice()
         const std::string name = ext.extensionName;
         if (optionalExtensions.device.find(name) != optionalExtensions.device.end())
         {
+            if (name == VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME && m_DeviceParams.headlessDevice)
+                continue;
+
             enabledExtensions.device.insert(name);
         }
 
@@ -684,6 +720,11 @@ bool DeviceManager_VK::createDevice()
         {
             enabledExtensions.device.insert(name);
         }
+    }
+
+    if (!m_DeviceParams.headlessDevice)
+    {
+        enabledExtensions.device.insert(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     }
 
     const vk::PhysicalDeviceProperties physicalDeviceProperties = m_VulkanPhysicalDevice.getProperties();
@@ -716,6 +757,8 @@ bool DeviceManager_VK::createDevice()
             synchronization2Supported = true;
         else if (ext == VK_KHR_MAINTENANCE_4_EXTENSION_NAME)
             maintenance4Supported = true;
+        else if (ext == VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME)
+            m_SwapChainMutableFormatSupported = true;
     }
 
 #define APPEND_EXTENSION(condition, desc) if (condition) { (desc).pNext = pNext; pNext = &(desc); }  // NOLINT(cppcoreguidelines-macro-usage)
@@ -734,8 +777,10 @@ bool DeviceManager_VK::createDevice()
     m_VulkanPhysicalDevice.getFeatures2(&physicalDeviceFeatures2);
 
     std::unordered_set<int> uniqueQueueFamilies = {
-        m_GraphicsQueueFamily,
-        m_PresentQueueFamily };
+        m_GraphicsQueueFamily };
+
+    if (!m_DeviceParams.headlessDevice)
+        uniqueQueueFamilies.insert(m_PresentQueueFamily);
 
     if (m_DeviceParams.enableComputeQueue)
         uniqueQueueFamilies.insert(m_ComputeQueueFamily);
@@ -820,7 +865,7 @@ bool DeviceManager_VK::createDevice()
     const vk::Result res = m_VulkanPhysicalDevice.createDevice(&deviceDesc, nullptr, &m_VulkanDevice);
     if (res != vk::Result::eSuccess)
     {
-        log::error("Failed to create a Vulkan physical device, error code = %s", nvrhi::vulkan::resultToString(res));
+        log::error("Failed to create a Vulkan physical device, error code = %s", nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
 
@@ -829,7 +874,8 @@ bool DeviceManager_VK::createDevice()
         m_VulkanDevice.getQueue(m_ComputeQueueFamily, 0, &m_ComputeQueue);
     if (m_DeviceParams.enableCopyQueue)
         m_VulkanDevice.getQueue(m_TransferQueueFamily, 0, &m_TransferQueue);
-    m_VulkanDevice.getQueue(m_PresentQueueFamily, 0, &m_PresentQueue);
+    if (!m_DeviceParams.headlessDevice)
+        m_VulkanDevice.getQueue(m_PresentQueueFamily, 0, &m_PresentQueue);
 
     VULKAN_HPP_DEFAULT_DISPATCHER.init(m_VulkanDevice);
 
@@ -897,6 +943,7 @@ bool DeviceManager_VK::createSwapChain()
                     .setImageArrayLayers(1)
                     .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled)
                     .setImageSharingMode(enableSwapChainSharing ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive)
+                    .setFlags(m_SwapChainMutableFormatSupported ? vk::SwapchainCreateFlagBitsKHR::eMutableFormat : vk::SwapchainCreateFlagBitsKHR(0))
                     .setQueueFamilyIndexCount(enableSwapChainSharing ? uint32_t(queues.size()) : 0)
                     .setPQueueFamilyIndices(enableSwapChainSharing ? queues.data() : nullptr)
                     .setPreTransform(vk::SurfaceTransformFlagBitsKHR::eIdentity)
@@ -904,11 +951,34 @@ bool DeviceManager_VK::createSwapChain()
                     .setPresentMode(m_DeviceParams.vsyncEnabled ? vk::PresentModeKHR::eFifo : vk::PresentModeKHR::eImmediate)
                     .setClipped(true)
                     .setOldSwapchain(nullptr);
+    
+    std::vector<vk::Format> imageFormats = { m_SwapChainFormat.format };
+    switch(m_SwapChainFormat.format)
+    {
+        case vk::Format::eR8G8B8A8Unorm:
+            imageFormats.push_back(vk::Format::eR8G8B8A8Srgb);
+            break;
+        case vk::Format::eR8G8B8A8Srgb:
+            imageFormats.push_back(vk::Format::eR8G8B8A8Unorm);
+            break;
+        case vk::Format::eB8G8R8A8Unorm:
+            imageFormats.push_back(vk::Format::eB8G8R8A8Srgb);
+            break;
+        case vk::Format::eB8G8R8A8Srgb:
+            imageFormats.push_back(vk::Format::eB8G8R8A8Unorm);
+            break;
+    }
+
+    auto imageFormatListCreateInfo = vk::ImageFormatListCreateInfo()
+        .setViewFormats(imageFormats);
+
+    if (m_SwapChainMutableFormatSupported)
+        desc.pNext = &imageFormatListCreateInfo;
 
     const vk::Result res = m_VulkanDevice.createSwapchainKHR(&desc, nullptr, &m_SwapChain);
     if (res != vk::Result::eSuccess)
     {
-        log::error("Failed to create a Vulkan swap chain, error code = %s", nvrhi::vulkan::resultToString(res));
+        log::error("Failed to create a Vulkan swap chain, error code = %s", nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
 
@@ -937,7 +1007,9 @@ bool DeviceManager_VK::createSwapChain()
     return true;
 }
 
-bool DeviceManager_VK::CreateDeviceAndSwapChain()
+#define CHECK(a) if (!(a)) { return false; }
+
+bool DeviceManager_VK::CreateInstanceInternal()
 {
     if (m_DeviceParams.enableDebugRuntime)
     {
@@ -945,24 +1017,55 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
         enabledExtensions.layers.insert("VK_LAYER_KHRONOS_validation");
     }
 
-    const vk::DynamicLoader dl;
-    const PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr =   // NOLINT(misc-misplaced-const)
-        dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr =
+        m_dynamicLoader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
 
-#define CHECK(a) if (!(a)) { return false; }
+    return createInstance();
+}
 
-    CHECK(createInstance())
-    
+bool DeviceManager_VK::EnumerateAdapters(std::vector<AdapterInfo>& outAdapters)
+{
+    if (!m_VulkanInstance)
+        return false;
+
+    std::vector<vk::PhysicalDevice> devices = m_VulkanInstance.enumeratePhysicalDevices();
+    outAdapters.clear();
+
+    for (auto physicalDevice : devices)
+    {
+        vk::PhysicalDeviceProperties properties = physicalDevice.getProperties();
+        
+        AdapterInfo adapterInfo;
+        adapterInfo.name = properties.deviceName.data();
+        adapterInfo.vendorID = properties.vendorID;
+        adapterInfo.deviceID = properties.deviceID;
+        adapterInfo.vkPhysicalDevice = physicalDevice;
+        adapterInfo.dedicatedVideoMemory = 0;
+
+        // Go through the memory types to figure out the amount of VRAM on this physical device.
+        vk::PhysicalDeviceMemoryProperties memoryProperties = physicalDevice.getMemoryProperties();
+        for (uint32_t heapIndex = 0; heapIndex < memoryProperties.memoryHeapCount; ++heapIndex)
+        {
+            vk::MemoryHeap const& heap = memoryProperties.memoryHeaps[heapIndex];
+            if (heap.flags & vk::MemoryHeapFlagBits::eDeviceLocal)
+            {
+                adapterInfo.dedicatedVideoMemory += heap.size;
+            }
+        }
+
+        outAdapters.push_back(std::move(adapterInfo));
+    }
+
+    return true;
+}
+
+bool DeviceManager_VK::CreateDevice()
+{
     if (m_DeviceParams.enableDebugRuntime)
     {
         installDebugCallback();
     }
-
-    if (m_DeviceParams.swapChainFormat == nvrhi::Format::SRGBA8_UNORM)
-        m_DeviceParams.swapChainFormat = nvrhi::Format::SBGRA8_UNORM;
-    else if (m_DeviceParams.swapChainFormat == nvrhi::Format::RGBA8_UNORM)
-        m_DeviceParams.swapChainFormat = nvrhi::Format::BGRA8_UNORM;
 
     // add device extensions requested by the user
     for (const std::string& name : m_DeviceParams.requiredVulkanDeviceExtensions)
@@ -974,7 +1077,16 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
         optionalExtensions.device.insert(name);
     }
 
-    CHECK(createWindowSurface())
+    if (!m_DeviceParams.headlessDevice)
+    {
+        // Need to adjust the swap chain format before creating the device because it affects physical device selection
+        if (m_DeviceParams.swapChainFormat == nvrhi::Format::SRGBA8_UNORM)
+            m_DeviceParams.swapChainFormat = nvrhi::Format::SBGRA8_UNORM;
+        else if (m_DeviceParams.swapChainFormat == nvrhi::Format::RGBA8_UNORM)
+            m_DeviceParams.swapChainFormat = nvrhi::Format::BGRA8_UNORM;
+
+        CHECK(createWindowSurface())
+    }
     CHECK(pickPhysicalDevice())
     CHECK(findQueueFamilies(m_VulkanPhysicalDevice))
     CHECK(createDevice())
@@ -1013,23 +1125,37 @@ bool DeviceManager_VK::CreateDeviceAndSwapChain()
         m_ValidationLayer = nvrhi::validation::createValidationLayer(m_NvrhiDevice);
     }
 
+    return true;
+}
+
+bool DeviceManager_VK::CreateSwapChain()
+{
     CHECK(createSwapChain())
 
     m_BarrierCommandList = m_NvrhiDevice->createCommandList();
 
-    m_PresentSemaphore = m_VulkanDevice.createSemaphore(vk::SemaphoreCreateInfo());
-
-#undef CHECK
+    m_PresentSemaphores.reserve(m_DeviceParams.maxFramesInFlight + 1);
+    for (uint32_t i = 0; i < m_DeviceParams.maxFramesInFlight + 1; ++i)
+    {
+        m_PresentSemaphores.push_back(m_VulkanDevice.createSemaphore(vk::SemaphoreCreateInfo()));
+    }
 
     return true;
 }
+#undef CHECK
 
 void DeviceManager_VK::DestroyDeviceAndSwapChain()
 {
     destroySwapChain();
 
-    m_VulkanDevice.destroySemaphore(m_PresentSemaphore);
-    m_PresentSemaphore = vk::Semaphore();
+    for (auto& semaphore : m_PresentSemaphores)
+    {
+        if (semaphore)
+        {
+            m_VulkanDevice.destroySemaphore(semaphore);
+            semaphore = vk::Semaphore();
+        }
+    }
 
     m_BarrierCommandList = nullptr;
 
@@ -1037,11 +1163,6 @@ void DeviceManager_VK::DestroyDeviceAndSwapChain()
     m_ValidationLayer = nullptr;
     m_RendererString.clear();
     
-    if (m_DebugReportCallback)
-    {
-        m_VulkanInstance.destroyDebugReportCallbackEXT(m_DebugReportCallback);
-    }
-
     if (m_VulkanDevice)
     {
         m_VulkanDevice.destroy();
@@ -1055,6 +1176,11 @@ void DeviceManager_VK::DestroyDeviceAndSwapChain()
         m_WindowSurface = nullptr;
     }
 
+    if (m_DebugReportCallback)
+    {
+        m_VulkanInstance.destroyDebugReportCallbackEXT(m_DebugReportCallback);
+    }
+
     if (m_VulkanInstance)
     {
         m_VulkanInstance.destroy();
@@ -1064,20 +1190,24 @@ void DeviceManager_VK::DestroyDeviceAndSwapChain()
 
 void DeviceManager_VK::BeginFrame()
 {
+    const auto& semaphore = m_PresentSemaphores[m_PresentSemaphoreIndex];
+
     const vk::Result res = m_VulkanDevice.acquireNextImageKHR(m_SwapChain,
                                                       std::numeric_limits<uint64_t>::max(), // timeout
-                                                      m_PresentSemaphore,
+                                                      semaphore,
                                                       vk::Fence(),
                                                       &m_SwapChainIndex);
 
     assert(res == vk::Result::eSuccess);
 
-    m_NvrhiDevice->queueWaitForSemaphore(nvrhi::CommandQueue::Graphics, m_PresentSemaphore, 0);
+    m_NvrhiDevice->queueWaitForSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
 }
 
 void DeviceManager_VK::Present()
 {
-    m_NvrhiDevice->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, m_PresentSemaphore, 0);
+    const auto& semaphore = m_PresentSemaphores[m_PresentSemaphoreIndex];
+
+    m_NvrhiDevice->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
 
     m_BarrierCommandList->open(); // umm...
     m_BarrierCommandList->close();
@@ -1085,7 +1215,7 @@ void DeviceManager_VK::Present()
 
     vk::PresentInfoKHR info = vk::PresentInfoKHR()
                                 .setWaitSemaphoreCount(1)
-                                .setPWaitSemaphores(&m_PresentSemaphore)
+                                .setPWaitSemaphores(&semaphore)
                                 .setSwapchainCount(1)
                                 .setPSwapchains(&m_SwapChain)
                                 .setPImageIndices(&m_SwapChainIndex);
@@ -1093,46 +1223,39 @@ void DeviceManager_VK::Present()
     const vk::Result res = m_PresentQueue.presentKHR(&info);
     assert(res == vk::Result::eSuccess || res == vk::Result::eErrorOutOfDateKHR);
 
-    if (m_DeviceParams.enableDebugRuntime)
+    m_PresentSemaphoreIndex = (m_PresentSemaphoreIndex + 1) % m_PresentSemaphores.size();
+
+#ifndef _WIN32
+    if (m_DeviceParams.vsyncEnabled)
     {
-        // according to vulkan-tutorial.com, "the validation layer implementation expects
-        // the application to explicitly synchronize with the GPU"
         m_PresentQueue.waitIdle();
+    }
+#endif
+
+    while (m_FramesInFlight.size() >= m_DeviceParams.maxFramesInFlight)
+    {
+        auto query = m_FramesInFlight.front();
+        m_FramesInFlight.pop();
+
+        m_NvrhiDevice->waitEventQuery(query);
+
+        m_QueryPool.push_back(query);
+    }
+
+    nvrhi::EventQueryHandle query;
+    if (!m_QueryPool.empty())
+    {
+        query = m_QueryPool.back();
+        m_QueryPool.pop_back();
     }
     else
     {
-#ifndef _WIN32
-        if (m_DeviceParams.vsyncEnabled)
-        {
-            m_PresentQueue.waitIdle();
-        }
-#endif
-
-        while (m_FramesInFlight.size() > m_DeviceParams.maxFramesInFlight)
-        {
-            auto query = m_FramesInFlight.front();
-            m_FramesInFlight.pop();
-
-            m_NvrhiDevice->waitEventQuery(query);
-
-            m_QueryPool.push_back(query);
-        }
-
-        nvrhi::EventQueryHandle query;
-        if (!m_QueryPool.empty())
-        {
-            query = m_QueryPool.back();
-            m_QueryPool.pop_back();
-        }
-        else
-        {
-            query = m_NvrhiDevice->createEventQuery();
-        }
-
-        m_NvrhiDevice->resetEventQuery(query);
-        m_NvrhiDevice->setEventQuery(query, nvrhi::CommandQueue::Graphics);
-        m_FramesInFlight.push(query);
+        query = m_NvrhiDevice->createEventQuery();
     }
+
+    m_NvrhiDevice->resetEventQuery(query);
+    m_NvrhiDevice->setEventQuery(query, nvrhi::CommandQueue::Graphics);
+    m_FramesInFlight.push(query);
 }
 
 DeviceManager *DeviceManager::CreateVK()

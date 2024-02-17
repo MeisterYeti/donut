@@ -483,6 +483,7 @@ bool GltfImporter::Load(
     std::vector<float3> computedTangents;
     std::vector<float3> computedBitangents;
     std::vector<std::shared_ptr<MeshInfo>> meshes;
+    std::shared_ptr<Material> emptyMaterial;
 
     for (size_t mesh_idx = 0; mesh_idx < objects->meshes_count; mesh_idx++)
     {
@@ -883,7 +884,22 @@ bool GltfImporter::Load(
                     geometry->primType = nvrhi::PrimitiveType::TriangleList;
                     break;
             }
-            geometry->material = materials[prim.material];
+            
+            if (prim.material)
+            {
+                geometry->material = materials[prim.material];
+            }
+            else
+            {
+                log::warning("Geometry %d for mesh '%s' doesn't have a material.", uint32_t(minfo->geometries.size()), minfo->name.c_str());
+                if (!emptyMaterial)
+                {
+                    emptyMaterial = std::make_shared<Material>();
+                    emptyMaterial->name = "(empty)";
+                }
+                geometry->material = emptyMaterial;
+            }
+
             geometry->indexOffsetInMesh = minfo->totalIndices;
             geometry->vertexOffsetInMesh = minfo->totalVertices;
             geometry->numIndices = (uint32_t)indexCount;
@@ -1145,9 +1161,10 @@ bool GltfImporter::Load(
                 cgltf_accessor_read_float(src->skin->inverse_bind_matrices, joint_idx, joint.inverseBindMatrix.m_data, 16);
                 joint.node = nodeMap[src->skin->joints[joint_idx]];
 
-                if (!joint.node->GetLeaf())
+                auto jointNode = joint.node.lock();
+                if (!jointNode->GetLeaf())
                 {
-                    joint.node->SetLeaf(std::make_shared<SkinnedMeshReference>(skinnedInstance));
+                    jointNode->SetLeaf(std::make_shared<SkinnedMeshReference>(skinnedInstance));
                 }
             }
 

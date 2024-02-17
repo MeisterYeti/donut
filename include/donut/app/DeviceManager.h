@@ -49,19 +49,19 @@ freely, subject to the following restrictions:
 
 #pragma once
 
-#if USE_DX11 || USE_DX12
+#if DONUT_WITH_DX11 || DONUT_WITH_DX12
 #include <DXGI.h>
 #endif
 
-#if USE_DX11
+#if DONUT_WITH_DX11
 #include <d3d11.h>
 #endif
 
-#if USE_DX12
+#if DONUT_WITH_DX12
 #include <d3d12.h>
 #endif
 
-#if USE_VK
+#if DONUT_WITH_VULKAN
 #include <nvrhi/vulkan.h>
 #endif
 
@@ -86,7 +86,20 @@ namespace donut::app
         void message(nvrhi::MessageSeverity severity, const char* messageText) override;
     };
 
-    struct DeviceCreationParameters
+    struct InstanceParameters
+    {
+        bool enableDebugRuntime = false;
+        bool headlessDevice = false;
+
+#if DONUT_WITH_VULKAN
+        std::vector<std::string> requiredVulkanInstanceExtensions;
+        std::vector<std::string> requiredVulkanLayers;
+        std::vector<std::string> optionalVulkanInstanceExtensions;
+        std::vector<std::string> optionalVulkanLayers;
+#endif
+    };
+
+    struct DeviceCreationParameters : public InstanceParameters
     {
         bool startMaximized = false;
         bool startFullscreen = false;
@@ -101,7 +114,6 @@ namespace donut::app
         uint32_t swapChainSampleCount = 1;
         uint32_t swapChainSampleQuality = 0;
         uint32_t maxFramesInFlight = 2;
-        bool enableDebugRuntime = false;
         bool enableNvrhiValidationLayer = false;
         bool vsyncEnabled = false;
         bool enableRayTracingExtensions = false; // for vulkan
@@ -111,16 +123,10 @@ namespace donut::app
         // Severity of the information log messages from the device manager, like the device name or enabled extensions.
         log::Severity infoLogSeverity = log::Severity::Info;
 
-#if USE_DX11 || USE_DX12
-        // Adapter to create the device on. Setting this to non-null overrides adapterNameSubstring.
-        // If device creation fails on the specified adapter, it will *not* try any other adapters.
-        IDXGIAdapter* adapter = nullptr;
-#endif
-
-        // For use in the case of multiple adapters; only effective if 'adapter' is null. If this is non-null, device creation will try to match
-        // the given string against an adapter name.  If the specified string exists as a sub-string of the
-        // adapter name, the device and window will be created on that adapter.  Case sensitive.
-        std::wstring adapterNameSubstring = L"";
+        // Index of the adapter (DX11, DX12) or physical device (Vk) on which to initialize the device.
+        // Negative values mean automatic detection.
+        // The order of indices matches that returned by DeviceManager::EnumerateAdapters.
+        int adapterIndex = -1;
 
         // set to true to enable DPI scale factors to be computed per monitor
         // this will keep the on-screen window size in pixels constant
@@ -133,31 +139,52 @@ namespace donut::app
         // and respond to DPI scale factor changes by resizing the backbuffer explicitly
         bool enablePerMonitorDPI = false;
 
-#if USE_DX11 || USE_DX12
+#if DONUT_WITH_DX11 || DONUT_WITH_DX12
         DXGI_USAGE swapChainUsage = DXGI_USAGE_SHADER_INPUT | DXGI_USAGE_RENDER_TARGET_OUTPUT;
         D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
 #endif
 
-#if USE_VK
-        std::vector<std::string> requiredVulkanInstanceExtensions;
+#if DONUT_WITH_VULKAN
         std::vector<std::string> requiredVulkanDeviceExtensions;
-        std::vector<std::string> requiredVulkanLayers;
-        std::vector<std::string> optionalVulkanInstanceExtensions;
         std::vector<std::string> optionalVulkanDeviceExtensions;
-        std::vector<std::string> optionalVulkanLayers;
         std::vector<size_t> ignoredVulkanValidationMessageLocations;
-        std::function<void(vk::DeviceCreateInfo&)> deviceCreateInfoCallback;
+        std::function<void(VkDeviceCreateInfo&)> deviceCreateInfoCallback;
 #endif
     };
 
     class IRenderPass;
+
+    struct AdapterInfo
+    {
+        std::string name;
+        uint32_t vendorID = 0;
+        uint32_t deviceID = 0;
+        uint64_t dedicatedVideoMemory = 0;
+#if DONUT_WITH_DX11 || DONUT_WITH_DX12
+        nvrhi::RefCountPtr<IDXGIAdapter> dxgiAdapter;
+#endif
+#if DONUT_WITH_VULKAN
+        VkPhysicalDevice vkPhysicalDevice = nullptr;
+#endif
+    };
 
     class DeviceManager
     {
     public:
         static DeviceManager* Create(nvrhi::GraphicsAPI api);
 
-        bool CreateWindowDeviceAndSwapChain(const DeviceCreationParameters& params, const char *windowTitle);
+        bool CreateHeadlessDevice(const DeviceCreationParameters& params);
+        bool CreateWindowDeviceAndSwapChain(const DeviceCreationParameters& params, const char* windowTitle);
+
+        // Initializes device-independent objects (DXGI factory, Vulkan instnace).
+        // Calling CreateInstance() is required before EnumerateAdapters(), but optional if you don't use EnumerateAdapters().
+        // Note: if you call CreateInstance before Create*Device*(), the values in InstanceParameters must match those
+        // in DeviceCreationParameters passed to the device call.
+        bool CreateInstance(const InstanceParameters& params);
+
+        // Enumerates adapters or physical devices present in the system.
+        // Note: a call to CreateInstance() or Create*Device*() is required before EnumerateAdapters().
+        virtual bool EnumerateAdapters(std::vector<AdapterInfo>& outAdapters) = 0;
 
         void AddRenderPassToFront(IRenderPass *pController);
         void AddRenderPassToBack(IRenderPass *pController);
@@ -179,6 +206,7 @@ namespace donut::app
 
         DeviceCreationParameters m_DeviceParams;
         GLFWwindow *m_Window = nullptr;
+        bool m_EnableRenderDuringWindowMovement = false;
         // set to true if running on NV GPU
         bool m_IsNvidia = false;
         std::list<IRenderPass *> m_vRenderPasses;
@@ -188,6 +216,7 @@ namespace donut::app
         float m_DPIScaleFactorX = 1.f;
         float m_DPIScaleFactorY = 1.f;
         bool m_RequestedVSync = false;
+        bool m_InstanceCreated = false;
 
         double m_AverageFrameTime = 0.0;
         double m_AverageTimeUpdateInterval = 0.5;
@@ -208,9 +237,11 @@ namespace donut::app
         void Animate(double elapsedTime);
         void Render();
         void UpdateAverageFrameTime(double elapsedTime);
-
+        void AnimateRenderPresent();
         // device-specific methods
-        virtual bool CreateDeviceAndSwapChain() = 0;
+        virtual bool CreateInstanceInternal() = 0;
+        virtual bool CreateDevice() = 0;
+        virtual bool CreateSwapChain() = 0;
         virtual void DestroyDeviceAndSwapChain() = 0;
         virtual void ResizeSwapChain() = 0;
         virtual void BeginFrame() = 0;
@@ -228,6 +259,7 @@ namespace donut::app
         [[nodiscard]] bool IsVsyncEnabled() const { return m_DeviceParams.vsyncEnabled; }
         virtual void SetVsyncEnabled(bool enabled) { m_RequestedVSync = enabled; /* will be processed later */ }
         virtual void ReportLiveObjects() {}
+        void SetEnableRenderDuringWindowMovement(bool val) {m_EnableRenderDuringWindowMovement = val;} 
 
         // these are public in order to be called from the GLFW callback functions
         void WindowCloseCallback() { }
@@ -252,7 +284,7 @@ namespace donut::app
         nvrhi::IFramebuffer* GetCurrentFramebuffer();
         nvrhi::IFramebuffer* GetFramebuffer(uint32_t index);
 
-        void Shutdown();
+        virtual void Shutdown();
         virtual ~DeviceManager() = default;
 
         void SetWindowTitle(const char* title);

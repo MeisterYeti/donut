@@ -57,11 +57,11 @@ freely, subject to the following restrictions:
 #include <thread>
 #include <sstream>
 
-#if USE_DX11
+#if DONUT_WITH_DX11
 #include <d3d11.h>
 #endif
 
-#if USE_DX12
+#if DONUT_WITH_DX12
 #include <d3d12.h>
 #endif
 
@@ -212,6 +212,34 @@ static const struct
     { nvrhi::Format::RGBA32_FLOAT,      32, 32, 32, 32,  0,  0, },
 };
 
+bool DeviceManager::CreateInstance(const InstanceParameters& params)
+{
+    if (m_InstanceCreated)
+        return true;
+
+    static_cast<InstanceParameters&>(m_DeviceParams) = params;
+
+    if (!params.headlessDevice)
+    {
+        if (!glfwInit())
+            return false;
+    }
+
+    m_InstanceCreated = CreateInstanceInternal();
+    return m_InstanceCreated;
+}
+
+bool DeviceManager::CreateHeadlessDevice(const DeviceCreationParameters& params)
+{
+    m_DeviceParams = params;
+    m_DeviceParams.headlessDevice = true;
+
+    if (!CreateInstance(m_DeviceParams))
+        return false;
+
+    return CreateDevice();
+}
+
 bool DeviceManager::CreateWindowDeviceAndSwapChain(const DeviceCreationParameters& params, const char *windowTitle)
 {
 #ifdef _WINDOWS
@@ -219,18 +247,18 @@ bool DeviceManager::CreateWindowDeviceAndSwapChain(const DeviceCreationParameter
     {
         // this needs to happen before glfwInit in order to override GLFW behavior
         SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-    } else {
+    }
+    else {
         SetProcessDpiAwareness(PROCESS_DPI_UNAWARE);
     }
 #endif
 
-    if (!glfwInit())
-    {
-        return false;
-    }
-
-    this->m_DeviceParams = params;
+    m_DeviceParams = params;
+    m_DeviceParams.headlessDevice = false;
     m_RequestedVSync = params.vsyncEnabled;
+
+    if (!CreateInstance(m_DeviceParams))
+        return false;
 
     glfwSetErrorCallback(ErrorCallback_GLFW);
 
@@ -309,13 +337,16 @@ bool DeviceManager::CreateWindowDeviceAndSwapChain(const DeviceCreationParameter
     glfwSetCursorPosCallback(m_Window, MousePosCallback_GLFW);
     glfwSetMouseButtonCallback(m_Window, MouseButtonCallback_GLFW);
     glfwSetScrollCallback(m_Window, MouseScrollCallback_GLFW);
-	  glfwSetJoystickCallback(JoystickConnectionCallback_GLFW);
+    glfwSetJoystickCallback(JoystickConnectionCallback_GLFW);
 
-	  // If there are multiple device managers, then this would be called by each one which isn't necessary
-	  // but should not hurt.
-	  JoyStickManager::Singleton().EnumerateJoysticks();
+    // If there are multiple device managers, then this would be called by each one which isn't necessary
+    // but should not hurt.
+    JoyStickManager::Singleton().EnumerateJoysticks();
 
-    if (!CreateDeviceAndSwapChain())
+    if (!CreateDevice())
+        return false;
+
+    if (!CreateSwapChain())
         return false;
 
     glfwShowWindow(m_Window);
@@ -430,38 +461,41 @@ void DeviceManager::RunMessageLoop()
 
         glfwPollEvents();
         UpdateWindowSize();
-
-        double curTime = glfwGetTime();
-        double elapsedTime = curTime - m_PreviousFrameTimestamp;
-
-		JoyStickManager::Singleton().EraseDisconnectedJoysticks();
-		JoyStickManager::Singleton().UpdateAllJoysticks(m_vRenderPasses);
-
-        if (m_windowVisible)
-        {
-            if (m_callbacks.beforeAnimate) m_callbacks.beforeAnimate(*this);
-            Animate(elapsedTime);
-            if (m_callbacks.afterAnimate) m_callbacks.afterAnimate(*this);
-            if (m_callbacks.beforeRender) m_callbacks.beforeRender(*this);
-            Render();
-            if (m_callbacks.afterRender) m_callbacks.afterRender(*this);
-            if (m_callbacks.beforePresent) m_callbacks.beforePresent(*this);
-            Present();
-            if (m_callbacks.afterPresent) m_callbacks.afterPresent(*this);
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(0));
-
-        GetDevice()->runGarbageCollection();
-
-        UpdateAverageFrameTime(elapsedTime);
-        m_PreviousFrameTimestamp = curTime;
-
-        ++m_FrameIndex;
-
+        AnimateRenderPresent();
     }
 
     GetDevice()->waitForIdle();
+}
+
+void DeviceManager::AnimateRenderPresent()
+{
+    double curTime = glfwGetTime();
+    double elapsedTime = curTime - m_PreviousFrameTimestamp;
+
+	JoyStickManager::Singleton().EraseDisconnectedJoysticks();
+	JoyStickManager::Singleton().UpdateAllJoysticks(m_vRenderPasses);
+
+    if (m_windowVisible)
+    {
+        if (m_callbacks.beforeAnimate) m_callbacks.beforeAnimate(*this);
+        Animate(elapsedTime);
+        if (m_callbacks.afterAnimate) m_callbacks.afterAnimate(*this);
+        if (m_callbacks.beforeRender) m_callbacks.beforeRender(*this);
+        Render();
+        if (m_callbacks.afterRender) m_callbacks.afterRender(*this);
+        if (m_callbacks.beforePresent) m_callbacks.beforePresent(*this);
+        Present();
+        if (m_callbacks.afterPresent) m_callbacks.afterPresent(*this);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(0));
+
+    GetDevice()->runGarbageCollection();
+
+    UpdateAverageFrameTime(elapsedTime);
+    m_PreviousFrameTimestamp = curTime;
+
+    ++m_FrameIndex;
 }
 
 void DeviceManager::GetWindowDimensions(int& width, int& height)
@@ -524,7 +558,12 @@ void DeviceManager::WindowPosCallback(int x, int y)
         m_DPIScaleFactorX = dpiX / 96.f;
         m_DPIScaleFactorY = dpiY / 96.f;
     }
-#endif
+#endif    
+    if (m_EnableRenderDuringWindowMovement && m_SwapChainFramebuffers.size() > 0)
+    {
+        if (m_callbacks.beforeFrame) m_callbacks.beforeFrame(*this);
+        AnimateRenderPresent();
+    }
 }
 
 void DeviceManager::KeyboardUpdate(int key, int scancode, int action, int mods)
@@ -691,6 +730,8 @@ void DeviceManager::Shutdown()
     }
 
     glfwTerminate();
+
+    m_InstanceCreated = false;
 }
 
 nvrhi::IFramebuffer* donut::app::DeviceManager::GetCurrentFramebuffer()
@@ -754,15 +795,15 @@ donut::app::DeviceManager* donut::app::DeviceManager::Create(nvrhi::GraphicsAPI 
 {
     switch (api)
     {
-#if USE_DX11
+#if DONUT_WITH_DX11
     case nvrhi::GraphicsAPI::D3D11:
         return CreateD3D11();
 #endif
-#if USE_DX12
+#if DONUT_WITH_DX12
     case nvrhi::GraphicsAPI::D3D12:
         return CreateD3D12();
 #endif
-#if USE_VK
+#if DONUT_WITH_VULKAN
     case nvrhi::GraphicsAPI::VULKAN:
         return CreateVK();
 #endif

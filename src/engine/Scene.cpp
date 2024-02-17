@@ -44,6 +44,18 @@ this software is released into the Public Domain.
 
 #include "donut/engine/ShaderFactory.h"
 
+#if DONUT_WITH_STATIC_SHADERS
+#if DONUT_WITH_DX11
+#include "compiled_shaders/skinning_cs.dxbc.h"
+#endif
+#if DONUT_WITH_DX12
+#include "compiled_shaders/skinning_cs.dxil.h"
+#endif
+#if DONUT_WITH_VULKAN
+#include "compiled_shaders/skinning_cs.spirv.h"
+#endif
+#endif
+
 
 #ifdef DONUT_WITH_TASKFLOW
 #include <taskflow/taskflow.hpp>
@@ -94,7 +106,7 @@ Scene::Scene(
     m_EnableBindlessResources = !!m_DescriptorTable;
     m_RayTracingSupported = m_Device->queryFeatureSupport(nvrhi::Feature::RayTracingAccelStruct);
 
-    m_SkinningShader = shaderFactory.CreateShader("donut/skinning_cs", "main", nullptr, nvrhi::ShaderType::Compute);
+    m_SkinningShader = shaderFactory.CreateAutoShader("donut/skinning_cs", "main", DONUT_MAKE_PLATFORM_SHADER(g_skinning_cs), nullptr, nvrhi::ShaderType::Compute);
 
     {
         nvrhi::BindingLayoutDesc layoutDesc;
@@ -742,7 +754,9 @@ void Scene::UpdateSkinnedMeshes(nvrhi::ICommandList* commandList, uint32_t frame
 
         for (size_t i = 0; i < skinnedInstance->joints.size(); i++)
         {
-            dm::float4x4 jointMatrix = dm::affineToHomogeneous(dm::affine3(skinnedInstance->joints[i].node->GetLocalToWorldTransform() * worldToRoot));
+            auto jointNode = skinnedInstance->joints[i].node.lock();
+
+            dm::float4x4 jointMatrix = dm::affineToHomogeneous(dm::affine3(jointNode->GetLocalToWorldTransform() * worldToRoot));
             jointMatrix = skinnedInstance->joints[i].inverseBindMatrix * jointMatrix;
             jointMatrices[i] = jointMatrix;
         }
@@ -1195,7 +1209,7 @@ void Scene::UpdateGeometry(const std::shared_ptr<MeshInfo>& mesh)
             ? uint32_t(vertexOffset * sizeof(uint32_t) + mesh->buffers->getVertexBufferRange(VertexAttribute::Normal).byteOffset) : ~0u;
         gdata.tangentOffset = mesh->buffers->hasAttribute(VertexAttribute::Tangent)
             ? uint32_t(vertexOffset * sizeof(uint32_t) + mesh->buffers->getVertexBufferRange(VertexAttribute::Tangent).byteOffset) : ~0u;
-        gdata.materialIndex = geometry->material->materialID;
+        gdata.materialIndex = geometry->material ? geometry->material->materialID : ~0u;
     }
 }
 
