@@ -55,7 +55,7 @@ freely, subject to the following restrictions:
 #include <donut/core/log.h>
 
 #include <Windows.h>
-#include <dxgi1_3.h>
+#include <dxgi1_4.h>
 #include <dxgidebug.h>
 
 #include <nvrhi/d3d11.h>
@@ -100,6 +100,8 @@ public:
     {
         return nvrhi::GraphicsAPI::D3D11;
     }
+    
+    VideoMemoryInfo GetMemoryInfo() const override;
 protected:
     bool CreateInstanceInternal() override;
     bool CreateDevice() override;
@@ -225,20 +227,17 @@ static std::string GetAdapterName(DXGI_ADAPTER_DESC const& aDesc)
     return name;
 }
 
-bool DeviceManager_DX11::CreateInstanceInternal()
-{
-    if (!m_DxgiFactory)
-    {
-        HRESULT hres = CreateDXGIFactory1(IID_PPV_ARGS(&m_DxgiFactory));
-        if (hres != S_OK)
-        {
-            donut::log::error("ERROR in CreateDXGIFactory1.\n"
-                "For more info, get log from debug D3D runtime: (1) Install DX SDK, and enable Debug D3D from DX Control Panel Utility. (2) Install and start DbgView. (3) Try running the program again.\n");
-            return false;
-        }
-    }
+bool DeviceManager_DX11::CreateInstanceInternal() {
+	if (!m_DxgiFactory) {
+		HRESULT hres = CreateDXGIFactory1(IID_PPV_ARGS(&m_DxgiFactory));
+		if (hres != S_OK) {
+			donut::log::error("ERROR in CreateDXGIFactory1.\n"
+												"For more info, get log from debug D3D runtime: (1) Install DX SDK, and enable Debug D3D from DX Control Panel Utility. (2) Install and start DbgView. (3) Try running the program again.\n");
+			return false;
+		}
+	}
 
-    return true;
+	return true;
 }
 
 bool DeviceManager_DX11::EnumerateAdapters(std::vector<AdapterInfo>& outAdapters)
@@ -498,4 +497,27 @@ void DeviceManager_DX11::Present()
 DeviceManager *DeviceManager::CreateD3D11()
 {
     return new DeviceManager_DX11();
+}
+
+VideoMemoryInfo DeviceManager_DX11::GetMemoryInfo() const {
+    VideoMemoryInfo videoMemoryInfo{};
+    int adapterIndex = m_DeviceParams.adapterIndex;
+    if (adapterIndex < 0)
+        adapterIndex = 0;
+
+    IDXGIAdapter3* adapter3;
+    if(FAILED(m_DxgiAdapter->QueryInterface(IID_PPV_ARGS(&adapter3))))
+    {
+        return videoMemoryInfo;
+    }
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO memoryInfo;
+    if(FAILED(adapter3->QueryVideoMemoryInfo(adapterIndex, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo)))
+    {
+        return videoMemoryInfo;
+    }
+
+    videoMemoryInfo.budget = memoryInfo.Budget;
+    videoMemoryInfo.currentUsage = memoryInfo.CurrentUsage;
+    return videoMemoryInfo;
 }

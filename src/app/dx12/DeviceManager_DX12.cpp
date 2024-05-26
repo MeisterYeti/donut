@@ -112,6 +112,8 @@ public:
     {
         return nvrhi::GraphicsAPI::D3D12;
     }
+
+    VideoMemoryInfo GetMemoryInfo() const override;
     
 protected:
     bool CreateInstanceInternal() override;
@@ -202,20 +204,17 @@ static std::string GetAdapterName(DXGI_ADAPTER_DESC const& aDesc)
     return name;
 }
 
-bool DeviceManager_DX12::CreateInstanceInternal()
-{
-    if (!m_DxgiFactory2)
-    {
-        HRESULT hres = CreateDXGIFactory2(m_DeviceParams.enableDebugRuntime ? DXGI_CREATE_FACTORY_DEBUG : 0, IID_PPV_ARGS(&m_DxgiFactory2));
-        if (hres != S_OK)
-        {
-            donut::log::error("ERROR in CreateDXGIFactory2.\n"
-                "For more info, get log from debug D3D runtime: (1) Install DX SDK, and enable Debug D3D from DX Control Panel Utility. (2) Install and start DbgView. (3) Try running the program again.\n");
-            return false;
-        }
-    }
+bool DeviceManager_DX12::CreateInstanceInternal() {
+	if (!m_DxgiFactory2) {
+		HRESULT hres = CreateDXGIFactory2(m_DeviceParams.enableDebugRuntime ? DXGI_CREATE_FACTORY_DEBUG : 0, IID_PPV_ARGS(&m_DxgiFactory2));
+		if (hres != S_OK) {
+			donut::log::error("ERROR in CreateDXGIFactory2.\n"
+												"For more info, get log from debug D3D runtime: (1) Install DX SDK, and enable Debug D3D from DX Control Panel Utility. (2) Install and start DbgView. (3) Try running the program again.\n");
+			return false;
+		}
+	}
 
-    return true;
+	return true;
 }
 
 bool DeviceManager_DX12::EnumerateAdapters(std::vector<AdapterInfo>& outAdapters)
@@ -638,4 +637,28 @@ void DeviceManager_DX12::Shutdown()
 DeviceManager *DeviceManager::CreateD3D12(void)
 {
     return new DeviceManager_DX12();
+}
+
+
+VideoMemoryInfo DeviceManager_DX12::GetMemoryInfo() const {
+    VideoMemoryInfo videoMemoryInfo{};
+    int adapterIndex = m_DeviceParams.adapterIndex;
+    if (adapterIndex < 0)
+        adapterIndex = 0;
+
+    IDXGIAdapter3* adapter3;
+    if(FAILED(m_DxgiAdapter->QueryInterface(IID_PPV_ARGS(&adapter3))))
+    {
+        return videoMemoryInfo;
+    }
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO memoryInfo;
+    if(FAILED(adapter3->QueryVideoMemoryInfo(adapterIndex, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo)))
+    {
+        return videoMemoryInfo;
+    }
+
+    videoMemoryInfo.budget = memoryInfo.Budget;
+    videoMemoryInfo.currentUsage = memoryInfo.CurrentUsage;
+    return videoMemoryInfo;
 }

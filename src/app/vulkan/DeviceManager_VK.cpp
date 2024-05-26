@@ -83,6 +83,7 @@ public:
 
     bool EnumerateAdapters(std::vector<AdapterInfo>& outAdapters) override;
 
+    VideoMemoryInfo GetMemoryInfo() const override;
 protected:
     bool CreateInstanceInternal() override;
     bool CreateDevice() override;
@@ -207,7 +208,8 @@ private:
             VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME,
             VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
             VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
-            VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME
+            VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME,
+            VK_EXT_MEMORY_BUDGET_EXTENSION_NAME
         },
     };
 
@@ -1296,4 +1298,32 @@ void DeviceManager_VK::Present()
 DeviceManager *DeviceManager::CreateVK()
 {
     return new DeviceManager_VK();
+}
+
+VideoMemoryInfo DeviceManager_VK::GetMemoryInfo() const {
+    VideoMemoryInfo videoMemoryInfo{};
+    if(!m_VulkanPhysicalDevice || !IsVulkanDeviceExtensionEnabled(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME))
+    {
+        return videoMemoryInfo;
+    }
+
+    auto memBudgetProps = vk::PhysicalDeviceMemoryBudgetPropertiesEXT();
+    auto memProps = vk::PhysicalDeviceMemoryProperties2();
+    memProps.pNext = &memBudgetProps;
+    m_VulkanPhysicalDevice.getMemoryProperties2(&memProps);
+    
+    videoMemoryInfo.budget = 0;
+    videoMemoryInfo.currentUsage = 0;
+
+    for(const auto& budget : memBudgetProps.heapBudget)
+    {
+        videoMemoryInfo.budget += budget;
+    }
+
+    for(const auto& usage : memBudgetProps.heapUsage)
+    {
+        videoMemoryInfo.currentUsage += usage;
+    }
+
+    return videoMemoryInfo;
 }
