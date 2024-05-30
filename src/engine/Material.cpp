@@ -62,6 +62,9 @@ namespace donut::engine
         if (doubleSided)
             constants.flags |= MaterialFlags_DoubleSided;
 
+        if (useVertexColors)
+            constants.flags |= MaterialFlags_UseVertexColors;
+
         // free parameters
 
         constants.domain = (int)domain;

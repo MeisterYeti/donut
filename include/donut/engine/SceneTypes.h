@@ -70,6 +70,7 @@ namespace donut::engine
         PrevTransform,
         JointIndices,
         JointWeights,
+        Colors,
 
         Count
     };
@@ -144,6 +145,8 @@ namespace donut::engine
 
         bool doubleSided = false;
 
+        bool useVertexColors = false;
+
         int materialID = 0;
         bool dirty = true; // set this to true to make Scene update the material data
 
@@ -176,6 +179,7 @@ namespace donut::engine
         std::vector<uint32_t> tangentData;
         std::vector<dm::vector<uint16_t, 4>> jointData;
         std::vector<dm::float4> weightData;
+        std::vector<uint32_t> colorData;
 
         [[nodiscard]] bool hasAttribute(VertexAttribute attr) const { return vertexBufferRanges[int(attr)].byteSize != 0; }
         nvrhi::BufferRange& getVertexBufferRange(VertexAttribute attr) { return vertexBufferRanges[int(attr)]; }

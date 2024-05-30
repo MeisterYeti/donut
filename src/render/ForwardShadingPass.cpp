@@ -142,6 +142,7 @@ nvrhi::InputLayoutHandle ForwardShadingPass::CreateInputLayout(nvrhi::IShader* v
         GetVertexAttributeDesc(VertexAttribute::Normal, "NORMAL", 3),
         GetVertexAttributeDesc(VertexAttribute::Tangent, "TANGENT", 4),
         GetVertexAttributeDesc(VertexAttribute::Transform, "TRANSFORM", 5),
+        GetVertexAttributeDesc(VertexAttribute::Colors, "COLOR", 6),
     };
 
     return m_Device->createInputLayout(inputDescs, uint32_t(std::size(inputDescs)), vertexShader);
@@ -483,7 +484,8 @@ void ForwardShadingPass::SetupInputBuffers(GeometryPassContext& abstractContext,
         { buffers->vertexBuffer, 2, buffers->getVertexBufferRange(VertexAttribute::TexCoord1).byteOffset },
         { buffers->vertexBuffer, 3, buffers->getVertexBufferRange(VertexAttribute::Normal).byteOffset },
         { buffers->vertexBuffer, 4, buffers->getVertexBufferRange(VertexAttribute::Tangent).byteOffset },
-        { buffers->instanceBuffer, 5, 0 }
+        { buffers->vertexBuffer, 5, buffers->getVertexBufferRange(VertexAttribute::Colors).byteOffset },
+        { buffers->instanceBuffer, 6, 0 }
     };
 
     state.indexBuffer = { buffers->indexBuffer, nvrhi::Format::R32_UINT, 0 };

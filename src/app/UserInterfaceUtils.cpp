@@ -193,6 +193,8 @@ bool donut::app::MaterialEditor(engine::Material* material, bool allowMaterialDo
 
     const ImVec4 filenameColor = ImVec4(0.474f, 0.722f, 0.176f, 1.0f);
 
+    update |= ImGui::Checkbox("Use Vertex Colors", &material->useVertexColors);
+
     update |= ImGui::Checkbox("Double-Sided", &material->doubleSided);
     
     if (material->useSpecularGlossModel)

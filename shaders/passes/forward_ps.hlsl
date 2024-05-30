@@ -69,7 +69,7 @@ void main(
 {
     MaterialTextureSample textures = SampleMaterialTexturesAuto(i_vtx.texCoord);
 
-    MaterialSample surfaceMaterial = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, g_Material, textures);
+    MaterialSample surfaceMaterial = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, i_vtx.color, g_Material, textures);
     float3 surfaceWorldPos = i_vtx.pos;
 
     if (!i_isFrontFace)
