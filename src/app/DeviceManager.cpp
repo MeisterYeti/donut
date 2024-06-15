@@ -51,6 +51,7 @@ freely, subject to the following restrictions:
 #include <donut/core/math/math.h>
 #include <donut/core/log.h>
 #include <nvrhi/utils.h>
+#include <nvtx3/nvtx3.hpp>
 
 #include <cstdio>
 #include <iomanip>
@@ -454,14 +455,17 @@ void DeviceManager::RunMessageLoop()
 
     while(!glfwWindowShouldClose(m_Window))
     {
-
+        nvtx3::scoped_range frame{"Frame", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
         if (m_callbacks.beforeFrame) m_callbacks.beforeFrame(*this);
-
-        glfwPollEvents();
+        {
+            nvtx3::scoped_range poll{"Poll Events", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+            glfwPollEvents();
+        }
         UpdateWindowSize();
         AnimateRenderPresent();
     }
 
+    nvtx3::scoped_range close{"Wait Idle", nvtx3::rgb{127, 255, 0}};
     GetDevice()->waitForIdle();
 }
 
@@ -475,23 +479,40 @@ void DeviceManager::AnimateRenderPresent()
 
     if (m_windowVisible)
     {
-        if (m_callbacks.beforeAnimate) m_callbacks.beforeAnimate(*this);
-        Animate(elapsedTime);
-        if (m_callbacks.afterAnimate) m_callbacks.afterAnimate(*this);
-        if (BeginFrame())
         {
-            if (m_callbacks.beforeRender) m_callbacks.beforeRender(*this);
-            Render();
-            if (m_callbacks.afterRender) m_callbacks.afterRender(*this);
-            if (m_callbacks.beforePresent) m_callbacks.beforePresent(*this);
-            Present();
-            if (m_callbacks.afterPresent) m_callbacks.afterPresent(*this);
+            nvtx3::scoped_range region{"Animate", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+            if (m_callbacks.beforeAnimate) m_callbacks.beforeAnimate(*this);
+            Animate(elapsedTime);
+            if (m_callbacks.afterAnimate) m_callbacks.afterAnimate(*this);
+        }
+        bool beginFrame = false;
+        {
+            nvtx3::scoped_range region{"Wait for Present", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+            beginFrame = BeginFrame();
+        }
+        if (beginFrame)
+        {
+            {
+                nvtx3::scoped_range region{"Render", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+                if (m_callbacks.beforeRender) m_callbacks.beforeRender(*this);
+                Render();
+                if (m_callbacks.afterRender) m_callbacks.afterRender(*this);
+            }
+            {
+                nvtx3::scoped_range region{"Present", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+                if (m_callbacks.beforePresent) m_callbacks.beforePresent(*this);
+                Present();
+                if (m_callbacks.afterPresent) m_callbacks.afterPresent(*this);
+            }
         }
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(0));
 
-    GetDevice()->runGarbageCollection();
+    {
+        nvtx3::scoped_range gc{"Garbage Collection", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+        GetDevice()->runGarbageCollection();
+    }
 
     UpdateAverageFrameTime(elapsedTime);
     m_PreviousFrameTimestamp = curTime;
@@ -529,6 +550,8 @@ void DeviceManager::UpdateWindowSize()
         int(m_DeviceParams.backBufferHeight) != height ||
         (m_DeviceParams.vsyncEnabled != m_RequestedVSync && GetGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN))
     {
+        nvtx3::scoped_range region{"Update Window Size", nvtx3::rgb{127, 255, 0}, nvtx3::payload{m_FrameIndex}};
+
         // window is not minimized, and the size has changed
 
         BackBufferResizing();

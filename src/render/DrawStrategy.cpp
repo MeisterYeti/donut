@@ -24,6 +24,7 @@
 #include <donut/render/GeometryPasses.h>
 #include <donut/engine/SceneGraph.h>
 #include <donut/engine/View.h>
+#include <nvtx3/nvtx3.hpp>
 
 using namespace donut::math;
 using namespace donut::engine;
@@ -63,6 +64,8 @@ static int CompareDrawItemsOpaque(const DrawItem* a, const DrawItem* b)
 
 void InstancedOpaqueDrawStrategy::FillChunk()
 {
+    nvtx3::scoped_range region{"Draw Opaque Chunk", nvtx3::rgb{255, 127, 0}};
+    
     m_InstanceChunk.resize(m_ChunkSize);
 
     DrawItem* writePtr = m_InstanceChunk.data();
@@ -171,6 +174,7 @@ static int CompareDrawItemsTransparent(const DrawItem* a, const DrawItem* b)
 
 void TransparentDrawStrategy::PrepareForView(const std::shared_ptr<engine::SceneGraphNode>& rootNode, const IView& view)
 {
+    nvtx3::scoped_range region{"Draw Transparent", nvtx3::rgb{255, 127, 0}};
     m_ReadPtr = 0;
 
     m_InstancesToDraw.clear();

@@ -45,6 +45,8 @@ if (NOT TARGET cgltf)
     target_include_directories(cgltf INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/cgltf)
 endif()
 
+add_subdirectory(nvtx/c)
+
 # Optional dependencies
 
 if (DONUT_WITH_TINYEXR AND NOT TARGET tinyexr)

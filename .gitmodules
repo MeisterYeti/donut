@@ -25,3 +25,6 @@
 [submodule "ShaderMake"]
 	path = ShaderMake
 	url = https://github.com/MeisterYeti/ShaderMake.git
+[submodule "thirdparty/nvtx"]
+	path = thirdparty/nvtx
+	url = https://github.com/NVIDIA/NVTX.git

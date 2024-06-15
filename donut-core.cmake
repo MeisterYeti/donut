@@ -37,7 +37,7 @@ file(GLOB donut_core_src
 
 add_library(donut_core STATIC EXCLUDE_FROM_ALL ${donut_core_src})
 target_include_directories(donut_core PUBLIC include)
-target_link_libraries(donut_core jsoncpp_static)
+target_link_libraries(donut_core jsoncpp_static nvtx3-cpp)
 
 if(NOT WIN32)
     target_link_libraries(donut_core stdc++fs dl pthread)
