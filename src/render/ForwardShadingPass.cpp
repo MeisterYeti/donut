@@ -162,8 +162,8 @@ nvrhi::InputLayoutHandle ForwardShadingPass::CreateInputLayout(nvrhi::IShader* v
             GetVertexAttributeDesc(VertexAttribute::TexCoord1, "TEXCOORD", 2),
             GetVertexAttributeDesc(VertexAttribute::Normal, "NORMAL", 3),
             GetVertexAttributeDesc(VertexAttribute::Tangent, "TANGENT", 4),
-            GetVertexAttributeDesc(VertexAttribute::Transform, "TRANSFORM", 5),
-            GetVertexAttributeDesc(VertexAttribute::Colors, "COLOR", 6),
+            GetVertexAttributeDesc(VertexAttribute::Colors, "COLOR", 5),
+            GetVertexAttributeDesc(VertexAttribute::Transform, "TRANSFORM", 6),
         };
 
         return m_Device->createInputLayout(inputDescs, uint32_t(std::size(inputDescs)), vertexShader);
