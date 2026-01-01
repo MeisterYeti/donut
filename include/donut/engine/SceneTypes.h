@@ -277,7 +277,7 @@ namespace donut::engine
         nvrhi::BufferHandle instanceBuffer;
         std::shared_ptr<DescriptorHandle> indexBufferDescriptor;
         std::shared_ptr<DescriptorHandle> vertexBufferDescriptor;
-        std::shared_ptr<DescriptorHandle> instnaceBufferDescriptor;
+        std::shared_ptr<DescriptorHandle> instanceBufferDescriptor;
         std::array<nvrhi::BufferRange, size_t(VertexAttribute::Count)> vertexBufferRanges;
         std::vector<nvrhi::BufferRange> morphTargetBufferRange;
         std::vector<uint32_t> indexData;
