@@ -50,6 +50,7 @@ SOFTWARE.
 #include <vector>
 #include <unordered_map>
 #include <stdint.h>
+#include <functional>
 
 #include <nvrhi/nvrhi.h>
 
@@ -85,6 +86,8 @@ namespace donut::app
 
         std::vector<ImDrawVert> vtxBuffer;
         std::vector<ImDrawIdx> idxBuffer;
+
+        std::function<void(nvrhi::GraphicsState&, const ImDrawCmd*)> onDrawCmd;
 
         bool init(nvrhi::IDevice* device, std::shared_ptr<engine::ShaderFactory> shaderFactory);
         bool updateFontTexture();

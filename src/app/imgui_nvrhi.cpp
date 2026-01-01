@@ -376,7 +376,18 @@ bool ImGui_NVRHI::render(nvrhi::IFramebuffer* framebuffer)
                 drawArguments.startIndexLocation = idxOffset;
                 drawArguments.startVertexLocation = vtxOffset;
 
-                m_commandList->setGraphicsState(drawState);
+                if(onDrawCmd)
+                {
+                    // create temporary copy of the draw state so we can revert to the previous state for the next command.
+                    nvrhi::GraphicsState tempDrawState = drawState;
+                    onDrawCmd(tempDrawState, pCmd);
+                    m_commandList->setGraphicsState(tempDrawState);
+                }
+                else
+                {
+                    m_commandList->setGraphicsState(drawState);
+                }
+
                 m_commandList->setPushConstants(invDisplaySize, sizeof(invDisplaySize));
                 m_commandList->drawIndexed(drawArguments);
             }

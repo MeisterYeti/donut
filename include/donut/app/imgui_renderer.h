@@ -132,7 +132,7 @@ namespace donut::app
     public:
         ImGui_Renderer(DeviceManager *devManager);
         ~ImGui_Renderer();
-        bool Init(std::shared_ptr<engine::ShaderFactory> shaderFactory);
+        virtual bool Init(std::shared_ptr<engine::ShaderFactory> shaderFactory);
 
         // Loads a TTF font from file and registers it with the ImGui_Renderer.
         // To use the font with ImGUI at runtime, call RegisteredFont::GetScaledFont().
