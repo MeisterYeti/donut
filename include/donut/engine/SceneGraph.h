@@ -246,6 +246,16 @@ namespace donut::engine
         void Store(Json::Value& node) const override;
         bool SetProperty(const std::string& name, const dm::float4& value) override;
     };
+
+    // Base class for custom user data
+    class SceneUserData : public std::enable_shared_from_this<SceneUserData>
+    {
+    public:
+        virtual ~SceneUserData() = default;
+
+        // Called when a node is copied. Can be overriden to allow the user to either share the reference or clone the user data.
+        virtual std::shared_ptr<SceneUserData> GetRefOrClone() { return shared_from_this(); }
+    };
     
     class SceneGraphNode final : public std::enable_shared_from_this<SceneGraphNode>
     {
@@ -269,6 +279,7 @@ namespace donut::engine
         SceneGraphNode* m_Parent = nullptr;
         std::vector<std::shared_ptr<SceneGraphNode>> m_Children;
         std::shared_ptr<SceneGraphLeaf> m_Leaf;
+        std::shared_ptr<SceneUserData> m_UserData;
 
         std::string m_Name;
         dm::daffine3 m_LocalTransform = dm::daffine3::identity();
@@ -326,6 +337,9 @@ namespace donut::engine
         void SetTranslation(const dm::double3& translation);
         void SetLeaf(const std::shared_ptr<SceneGraphLeaf>& leaf);
         void SetName(const std::string& name);
+
+        [[nodiscard]] const std::shared_ptr<SceneUserData>& GetUserData() const { return m_UserData; }
+        void SetUserData(const std::shared_ptr<SceneUserData>& userData) { m_UserData = userData; }
 
         // Non-copyable and non-movable
         SceneGraphNode(const SceneGraphNode&) = delete;

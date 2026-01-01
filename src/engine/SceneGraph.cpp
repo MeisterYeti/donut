@@ -728,6 +728,11 @@ std::shared_ptr<SceneGraphNode> SceneGraph::Attach(const std::shared_ptr<SceneGr
                 copy->SetLeaf(leafCopy);
             }
 
+            if(walker->m_UserData) {
+                auto userDataCopy = walker->m_UserData->GetRefOrClone();
+                copy->SetUserData(userDataCopy);
+            }
+
             // attach the copy to the new parent
             if (currentParent)
             {
