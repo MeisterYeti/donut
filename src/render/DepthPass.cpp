@@ -174,6 +174,7 @@ nvrhi::GraphicsPipelineHandle DepthPass::CreateGraphicsPipeline(PipelineKey key,
     nvrhi::FramebufferInfo const& framebufferInfo)
 {
     nvrhi::GraphicsPipelineDesc pipelineDesc;
+    pipelineDesc.primType = key.bits.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
     pipelineDesc.inputLayout = m_InputLayout;
     pipelineDesc.VS = m_VertexShader;
     pipelineDesc.PS = nullptr;
@@ -282,12 +283,13 @@ void DepthPass::SetupView(GeometryPassContext& abstractContext, nvrhi::ICommandL
     context.keyTemplate.bits.reverseDepth = view->IsReverseDepth();
 }
 
-bool DepthPass::SetupMaterial(GeometryPassContext& abstractContext, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state)
+bool DepthPass::SetupMaterial(GeometryPassContext& abstractContext, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state)
 {
     auto& context = static_cast<Context&>(abstractContext);
 
     PipelineKey key = context.keyTemplate;
     key.bits.cullMode = cullMode;
+    key.bits.drawPoints = primType == nvrhi::PrimitiveType::PointList;
 
     bool const hasBaseOrDiffuseTexture = material->baseOrDiffuseTexture
         && material->baseOrDiffuseTexture->texture

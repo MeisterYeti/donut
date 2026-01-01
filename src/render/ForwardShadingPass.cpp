@@ -240,6 +240,7 @@ nvrhi::GraphicsPipelineHandle ForwardShadingPass::CreateGraphicsPipeline(Forward
     nvrhi::FramebufferInfo const& framebufferInfo)
 {
     nvrhi::GraphicsPipelineDesc pipelineDesc;
+    pipelineDesc.primType = key.bits.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
     pipelineDesc.inputLayout = m_InputLayout;
     pipelineDesc.VS = m_VertexShader;
     pipelineDesc.GS = m_GeometryShader;
@@ -469,7 +470,7 @@ ViewType::Enum ForwardShadingPass::GetSupportedViewTypes() const
 }
 
 bool ForwardShadingPass::SetupMaterial(GeometryPassContext& abstractContext, const Material* material,
-    nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state)
+    nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state)
 {
     auto& context = static_cast<Context&>(abstractContext);
 
@@ -487,6 +488,7 @@ bool ForwardShadingPass::SetupMaterial(GeometryPassContext& abstractContext, con
     ForwardShadingPassPipelineKey key = context.keyTemplate;
     key.cullMode = cullMode;
     key.domain = material->domain;
+    key.drawPoints = primType == nvrhi::PrimitiveType::PointList;
 
     nvrhi::GraphicsPipelineHandle& pipeline = m_Pipelines[key];
 

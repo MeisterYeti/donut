@@ -1041,7 +1041,8 @@ bool GltfImporter::Load(
 
             if ((prim.type != cgltf_primitive_type_triangles &&
                  prim.type != cgltf_primitive_type_line_strip &&
-                 prim.type != cgltf_primitive_type_lines) ||
+                 prim.type != cgltf_primitive_type_lines &&
+                 prim.type != cgltf_primitive_type_points) ||
                 prim.attributes_count == 0)
             {
                 continue;
@@ -1118,7 +1119,8 @@ bool GltfImporter::Load(
 
             if ((prim.type != cgltf_primitive_type_triangles &&
                  prim.type != cgltf_primitive_type_line_strip &&
-                 prim.type != cgltf_primitive_type_lines) ||
+                 prim.type != cgltf_primitive_type_lines &&
+                 prim.type != cgltf_primitive_type_points) ||
                 prim.attributes_count == 0)
             {
                 continue;
@@ -1354,7 +1356,7 @@ bool GltfImporter::Load(
                 }
             }
 
-            if (normals && texcoords && (!tangents || c_ForceRebuildTangents))
+            if (normals && texcoords && (!tangents || c_ForceRebuildTangents) && prim.type == cgltf_primitive_type_triangles)
             {
                 auto [positionSrc, positionStride] = cgltf_buffer_iterator(positions, sizeof(float) * 3);
                 auto [texcoordSrc, texcoordStride] = cgltf_buffer_iterator(texcoords, sizeof(float) * 2);
@@ -1621,6 +1623,9 @@ bool GltfImporter::Load(
                     break;
                 case cgltf_primitive_type_line_strip:
                     geometry->type = MeshGeometryPrimitiveType::LineStrip;
+                    break;
+                case cgltf_primitive_type_points:
+                    geometry->type = MeshGeometryPrimitiveType::PointList;
                     break;
                 default:
                     break;

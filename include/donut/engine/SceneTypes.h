@@ -298,6 +298,7 @@ namespace donut::engine
         Triangles,
         Lines,
         LineStrip,
+        PointList,
 
         Count
     };
@@ -311,6 +312,7 @@ namespace donut::engine
         uint32_t numIndices = 0;
         uint32_t numVertices = 0;
         int globalGeometryIndex = 0;
+        nvrhi::PrimitiveType primType = nvrhi::PrimitiveType::TriangleList;
 
         MeshGeometryPrimitiveType type = MeshGeometryPrimitiveType::Triangles;
 

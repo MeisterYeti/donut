@@ -44,6 +44,7 @@ void donut::render::RenderView(
     const Material* lastMaterial = nullptr;
     const BufferGroup* lastBuffers = nullptr;
     nvrhi::RasterCullMode lastCullMode = nvrhi::RasterCullMode::Back;
+    nvrhi::PrimitiveType lastPrimType = nvrhi::PrimitiveType::TriangleList;
 
     bool drawMaterial = true;
     bool stateValid = false;
@@ -90,9 +91,9 @@ void donut::render::RenderView(
         if (item->material == nullptr)
             continue;
 
-
+        nvrhi::PrimitiveType primType = item->geometry ? item->geometry->primType : nvrhi::PrimitiveType::TriangleList;
         bool newBuffers = item->buffers != lastBuffers;
-        bool newMaterial = item->material != lastMaterial || item->cullMode != lastCullMode;
+        bool newMaterial = item->material != lastMaterial || item->cullMode != lastCullMode || primType != lastPrimType;
 
         if (newBuffers || newMaterial)
         {
@@ -109,7 +110,7 @@ void donut::render::RenderView(
 
         if (newMaterial)
         {
-            drawMaterial = pass.SetupMaterial(passContext, item->material, item->cullMode, graphicsState);
+            drawMaterial = pass.SetupMaterial(passContext, item->material, item->cullMode, primType, graphicsState);
 
             lastMaterial = item->material;
             lastCullMode = item->cullMode;

@@ -48,6 +48,7 @@ namespace donut::render
         nvrhi::RasterCullMode cullMode = nvrhi::RasterCullMode::Back;
         bool frontCounterClockwise = false;
         bool reverseDepth = false;
+        bool drawPoints = false;
         nvrhi::VariableRateShadingState shadingRateState{};
 
         bool operator==(const ForwardShadingPassPipelineKey& other) const
@@ -56,6 +57,7 @@ namespace donut::render
                     cullMode == other.cullMode &&
                     frontCounterClockwise == other.frontCounterClockwise &&
                     reverseDepth == other.reverseDepth &&
+                    drawPoints == other.drawPoints &&
                     shadingRateState == other.shadingRateState;
         }
 
@@ -190,7 +192,7 @@ namespace donut::render
 
         [[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;
         void SetupView(GeometryPassContext& context, nvrhi::ICommandList* commandList, const engine::IView* view, const engine::IView* viewPrev) override;
-        bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state) override;
+        bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::PrimitiveType primType, nvrhi::GraphicsState& state) override;
         void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) override;
         void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override;
     };
