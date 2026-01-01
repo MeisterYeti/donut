@@ -353,6 +353,10 @@ nvrhi::VertexAttributeDesc donut::engine::GetVertexAttributeDesc(VertexAttribute
         result.elementStride = sizeof(InstanceData);
         result.isInstanced = true;
         break;
+    case VertexAttribute::Colors:
+        result.format = nvrhi::Format::RGBA8_UNORM;
+        result.elementStride = sizeof(uint32_t);
+        break;
 
     default:
         assert(!"unknown attribute");

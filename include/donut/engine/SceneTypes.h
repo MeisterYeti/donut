@@ -146,6 +146,7 @@ namespace donut::engine
         JointIndices,
         JointWeights,
         CurveRadius,
+        Colors,
 
         Count
     };
@@ -252,6 +253,8 @@ namespace donut::engine
         // Useful when metalness and roughness are packed into a 2-channel texture for BC5 encoding.
         bool metalnessInRedChannel = false;
 
+        bool useVertexColors = false;
+
         int materialID = 0;
         bool dirty = true; // set this to true to make Scene update the material data
 
@@ -287,6 +290,7 @@ namespace donut::engine
         std::vector<dm::float4> weightData;
         std::vector<float> radiusData;
         std::vector<dm::float4> morphTargetData;
+        std::vector<uint32_t> colorData;
 
         [[nodiscard]] bool hasAttribute(VertexAttribute attr) const { return vertexBufferRanges[int(attr)].byteSize != 0; }
         nvrhi::BufferRange& getVertexBufferRange(VertexAttribute attr) { return vertexBufferRanges[int(attr)]; }

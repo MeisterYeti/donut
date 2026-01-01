@@ -30,6 +30,7 @@ struct SceneVertex
     float2 texCoord : TEXCOORD;
     centroid float3 normal : NORMAL;
     centroid float4 tangent : TANGENT;
+    float4 color : COLOR;
 };
 
 #endif

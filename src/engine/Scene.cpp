@@ -917,6 +917,12 @@ void Scene::CreateMeshBuffers(nvrhi::ICommandList* commandList)
                 AppendBufferRange(buffers->getVertexBufferRange(VertexAttribute::CurveRadius),
                     buffers->radiusData.size() * sizeof(buffers->radiusData[0]), bufferDesc.byteSize);
             }
+            
+            if (!buffers->colorData.empty())
+            {
+                AppendBufferRange(buffers->getVertexBufferRange(VertexAttribute::Colors),
+                    buffers->colorData.size() * sizeof(buffers->colorData[0]), bufferDesc.byteSize);
+            }
 
             if (bufferDesc.byteSize == 0)
             {
@@ -986,6 +992,13 @@ void Scene::CreateMeshBuffers(nvrhi::ICommandList* commandList)
                 const auto& range = buffers->getVertexBufferRange(VertexAttribute::CurveRadius);
                 commandList->writeBuffer(buffers->vertexBuffer, buffers->radiusData.data(), range.byteSize, range.byteOffset);
                 std::vector<float>().swap(buffers->radiusData);
+            }
+            
+            if (!buffers->colorData.empty())
+            {
+                const auto& range = buffers->getVertexBufferRange(VertexAttribute::Colors);
+                commandList->writeBuffer(buffers->vertexBuffer, buffers->colorData.data(), range.byteSize, range.byteOffset);
+                std::vector<uint32_t>().swap(buffers->colorData);
             }
 
             nvrhi::ResourceStates state = nvrhi::ResourceStates::VertexBuffer | nvrhi::ResourceStates::ShaderResource;

@@ -45,7 +45,7 @@ void main(
         textures.opacity = t_Opacity.Sample(s_MaterialSampler, i_texCoord).r;
 
     MaterialSample materialSample = EvaluateSceneMaterial(/* normal = */ float3(1, 0, 0),
-        /* tangent = */ float4(0, 1, 0, 0), g_Material, textures);
+        /* tangent = */ float4(0, 1, 0, 0), /* vertexColor = */ float4(1,1,1,1), g_Material, textures);
 
     clip(materialSample.opacity - g_Material.alphaCutoff);
 }

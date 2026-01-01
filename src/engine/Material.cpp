@@ -73,6 +73,9 @@ namespace donut::engine
         if (metalnessInRedChannel)
             constants.flags |= MaterialFlags_MetalnessInRedChannel;
 
+        if (useVertexColors)
+            constants.flags |= MaterialFlags_UseVertexColors;
+
         // free parameters
 
         constants.domain = (int)domain;

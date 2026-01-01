@@ -160,7 +160,7 @@ void ApplyNormalMap(inout MaterialSample result, float4 tangent, float4 normalsT
     result.shadingNormal = normalize(tangent.xyz * localNormal.x + bitangent.xyz * localNormal.y + result.geometryNormal.xyz * localNormal.z);
 }
 
-MaterialSample EvaluateSceneMaterial(float3 normal, float4 tangent, MaterialConstants material, MaterialTextureSample textures)
+MaterialSample EvaluateSceneMaterial(float3 normal, float4 tangent, float4 vertexColor, MaterialConstants material, MaterialTextureSample textures)
 {
     MaterialSample result = DefaultMaterialSample();
     result.geometryNormal = normalize(normal);
@@ -171,6 +171,9 @@ MaterialSample EvaluateSceneMaterial(float3 normal, float4 tangent, MaterialCons
         float3 diffuseColor = material.baseOrDiffuseColor.rgb * textures.baseOrDiffuse.rgb;
         float3 specularColor = material.specularColor.rgb * textures.metalRoughOrSpecular.rgb;
         result.roughness = 1.0 - textures.metalRoughOrSpecular.a * (1.0 - material.roughness);
+
+        if ((material.flags & MaterialFlags_UseVertexColors) != 0)
+            diffuseColor *= vertexColor.rgb;
 
 #if ENABLE_METAL_ROUGH_RECONSTRUCTION
         ConvertSpecularGlossToMetalRough(diffuseColor, specularColor, result.baseColor, result.metalness);
@@ -191,6 +194,9 @@ MaterialSample EvaluateSceneMaterial(float3 normal, float4 tangent, MaterialCons
         else
             result.metalness = material.metalness * textures.metalRoughOrSpecular.b;
         result.hasMetalRoughParams = true;
+
+        if ((material.flags & MaterialFlags_UseVertexColors) != 0)
+            result.baseColor *= vertexColor.rgb;
 
         // Compute the BRDF inputs for the metal-rough model
         // https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#metal-brdf-and-dielectric-brdf

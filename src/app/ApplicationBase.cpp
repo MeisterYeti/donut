@@ -278,7 +278,7 @@ nvrhi::GraphicsAPI donut::app::GetGraphicsAPIFromCommandLine(int argc, const cha
 std::vector<std::string> donut::app::FindScenes(vfs::IFileSystem& fs, std::filesystem::path const& path)
 {
     std::vector<std::string> scenes;
-    std::vector<std::string> sceneExtensions = { ".scene.json", ".gltf", ".glb" };
+    std::vector<std::string> sceneExtensions = { ".scene.json", ".gltf", ".glb", ".mmf" };
 
     std::deque<std::filesystem::path> searchList;
     searchList.push_back(path);

@@ -42,6 +42,7 @@ static const int MaterialFlags_MetalnessInRedChannel            = 0x00000100;
 static const int MaterialFlags_UseOpacityTexture                = 0x00000200;
 static const int MaterialFlags_SubsurfaceScattering             = 0x00000400;
 static const int MaterialFlags_Hair                             = 0x00000800;
+static const int MaterialFlags_UseVertexColors                  = 0x00001000;
 
 // NOTE: adjust LoadMaterialConstants(...) in bindless.h when changing this structure
 

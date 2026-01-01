@@ -63,7 +63,7 @@ void main(
 {
     MaterialTextureSample textures = SampleMaterialTexturesAuto(i_vtx.texCoord, g_Material.normalTextureTransformScale);
 
-    MaterialSample surface = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, g_Material, textures);
+    MaterialSample surface = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, i_vtx.color, g_Material, textures);
 
 #if ALPHA_TESTED
     if (g_Material.domain != MaterialDomain_Opaque)

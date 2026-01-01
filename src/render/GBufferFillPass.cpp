@@ -173,11 +173,12 @@ nvrhi::InputLayoutHandle GBufferFillPass::CreateInputLayout(nvrhi::IShader* vert
             GetVertexAttributeDesc(VertexAttribute::TexCoord1, "TEXCOORD", 2),
             GetVertexAttributeDesc(VertexAttribute::Normal, "NORMAL", 3),
             GetVertexAttributeDesc(VertexAttribute::Tangent, "TANGENT", 4),
-            GetVertexAttributeDesc(VertexAttribute::Transform, "TRANSFORM", 5),
+            GetVertexAttributeDesc(VertexAttribute::Colors, "COLOR", 5),
+            GetVertexAttributeDesc(VertexAttribute::Transform, "TRANSFORM", 6),
         };
         if (params.enableMotionVectors)
         {
-            inputDescs.push_back(GetVertexAttributeDesc(VertexAttribute::PrevTransform, "PREV_TRANSFORM", 5));
+            inputDescs.push_back(GetVertexAttributeDesc(VertexAttribute::PrevTransform, "PREV_TRANSFORM", 6));
         }
 
         return m_Device->createInputLayout(inputDescs.data(), static_cast<uint32_t>(inputDescs.size()), vertexShader);
@@ -369,7 +370,8 @@ void GBufferFillPass::SetupInputBuffers(GeometryPassContext& abstractContext, co
             { buffers->vertexBuffer, 2, buffers->getVertexBufferRange(VertexAttribute::TexCoord1).byteOffset },
             { buffers->vertexBuffer, 3, buffers->getVertexBufferRange(VertexAttribute::Normal).byteOffset },
             { buffers->vertexBuffer, 4, buffers->getVertexBufferRange(VertexAttribute::Tangent).byteOffset },
-            { buffers->instanceBuffer, 5, 0 }
+            { buffers->vertexBuffer, 5, buffers->getVertexBufferRange(VertexAttribute::Colors).byteOffset },
+            { buffers->instanceBuffer, 6, 0 }
         };
     }
     else
