@@ -62,7 +62,15 @@ public:
     }
 };
 
-
+static inline uint vectorToUInt8(const float4& v)
+{
+    float scale = 255.0f;
+    uint x = uint(v.x * scale);
+    uint y = uint(v.y * scale);
+    uint z = uint(v.z * scale);
+    uint w = uint(v.w * scale);
+    return (x & 0xff) | ((y & 0xff) << 8) | ((z & 0xff) << 16) | ((w & 0xff) << 24);
+}
 
 GltfImporter::GltfImporter(std::shared_ptr<vfs::IFileSystem> fs, std::shared_ptr<SceneTypeFactory> sceneTypeFactory)
     : m_fs(std::move(fs))
@@ -1030,6 +1038,7 @@ bool GltfImporter::Load(
     size_t totalVertices = 0;
     size_t morphTargetTotalVertices = 0;
     bool hasJoints = false;
+    bool hasColors = false;
 
     for (size_t mesh_idx = 0; mesh_idx < objects->meshes_count; mesh_idx++)
     {
@@ -1067,6 +1076,20 @@ bool GltfImporter::Load(
                     }
                 }
             }
+
+            if (!hasColors)
+            {
+                // Detect if the primitive has color attributes.
+                for (size_t attr_idx = 0; attr_idx < prim.attributes_count; attr_idx++)
+                {
+                    const cgltf_attribute& attr = prim.attributes[attr_idx];
+                    if (attr.type == cgltf_attribute_type_color)
+                    {
+                        hasColors = true;
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -1084,6 +1107,10 @@ bool GltfImporter::Load(
         // This is wasteful in case the model has both skinned and non-skinned meshes; TODO: improve.
         buffers->jointData.resize(totalVertices);
         buffers->weightData.resize(totalVertices);
+    }
+    if(hasColors)
+    {
+        buffers->colorData.resize(totalVertices);
     }
 
     morphTargetTotalVertices = totalVertices;
@@ -1147,6 +1174,7 @@ bool GltfImporter::Load(
             const cgltf_accessor* joint_weights = nullptr;
             const cgltf_accessor* joint_indices = nullptr;
             const cgltf_accessor* radius = nullptr;
+            const cgltf_accessor* colors = nullptr;
             
             for (size_t attr_idx = 0; attr_idx < prim.attributes_count; attr_idx++)
             {
@@ -1192,6 +1220,11 @@ bool GltfImporter::Load(
                         assert(attr.data->component_type == cgltf_component_type_r_32f);
                         radius = attr.data;
                     }
+                    break;
+                case cgltf_attribute_type_color:
+                    assert(attr.data->type == cgltf_type_vec4 || attr.data->type == cgltf_type_vec3);
+                    assert(attr.data->component_type == cgltf_component_type_r_8u || attr.data->component_type == cgltf_component_type_r_16u || attr.data->component_type == cgltf_component_type_r_32f);
+                    colors = attr.data;
                     break;
                 default:
                     break;
@@ -1544,6 +1577,59 @@ bool GltfImporter::Load(
                 }
             }
 
+            if (colors)
+            {
+                assert(colors->count == positions->count);
+
+                auto [colorSrc, colorStride] = cgltf_buffer_iterator(colors, 0);
+                uint32_t* colorDst = buffers->colorData.data() + totalVertices;
+
+                if (colors->component_type == cgltf_component_type_r_8u)
+                {
+                    assert(colors->type == cgltf_type_vec4);
+                    if (!colorStride) colorStride = sizeof(uint32_t);
+                    for (size_t v_idx = 0; v_idx < colors->count; v_idx++)
+                    {
+                        *colorDst = *reinterpret_cast<const uint32_t*>(colorSrc);
+                        colorSrc += colorStride;
+                        ++colorDst;
+                    }
+                }
+                else if (colors->component_type == cgltf_component_type_r_16u)
+                {
+                    assert(colors->type == cgltf_type_vec4);
+                    if (!colorStride) colorStride = sizeof(uint64_t);
+                    for (size_t v_idx = 0; v_idx < colors->count; v_idx++)
+                    {
+                        const uint16_t* colorSrcUshort = (const uint16_t*)colorSrc;
+                        dm::float4 tmpColor(
+                            float(colorSrcUshort[0]) / 65535.f,
+                            float(colorSrcUshort[1]) / 65535.f,
+                            float(colorSrcUshort[2]) / 65535.f,
+                            float(colorSrcUshort[3]) / 65535.f);
+                        
+                        *colorDst = vectorToUInt8(tmpColor);
+                        colorSrc += colorStride;
+                        ++colorDst;
+                    }
+                }
+                else
+                {
+                    assert(colors->type == cgltf_type_vec4 || colors->type == cgltf_type_vec3);
+                    assert(colors->component_type == cgltf_component_type_r_32f);
+                    dm::float4 tmpColor(0, 0, 0, 1);
+                    size_t channelCount = static_cast<size_t>(colors->type); // type matches channel count
+                    if (!colorStride) colorStride = channelCount * sizeof(float);
+                    for (size_t v_idx = 0; v_idx < colors->count; v_idx++)
+                    {
+                        std::memcpy(tmpColor.data(), colorSrc, channelCount * sizeof(float));
+                        *colorDst = vectorToUInt8(tmpColor);
+                        colorSrc += colorStride;
+                        ++colorDst;
+                    }
+                }
+            }
+
             auto geometry = m_SceneTypeFactory->CreateMeshGeometry();
             if (prim.material)
             {
@@ -1559,6 +1645,7 @@ bool GltfImporter::Load(
                 }
                 geometry->material = emptyMaterial;
             }
+            geometry->material->useVertexColors = hasColors;
 
             if (prim.targets_count > 0)
             {
