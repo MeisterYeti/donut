@@ -113,6 +113,10 @@ namespace donut::vfs
         // Returns the number of directories found, or a negative number on errors - see donut::vfs::status.
         // The directory names, relative to the 'path', are passed to 'callback' in no particular order.
         virtual int enumerateDirectories(const std::filesystem::path& path, enumerate_callback_t callback, bool allowDuplicates = false) = 0;
+
+        // Get the native absolute file path of a file.
+        // Returns empty path if not supported.
+        virtual std::filesystem::path getNativePath(const std::filesystem::path& name) { return {}; };
     };
 
     // An implementation of virtual file system that directly maps to the OS files.
@@ -125,6 +129,7 @@ namespace donut::vfs
         bool writeFile(const std::filesystem::path& name, const void* data, size_t size) override;
         int enumerateFiles(const std::filesystem::path& path, const std::vector<std::string>& extensions, enumerate_callback_t callback, bool allowDuplicates = false) override;
         int enumerateDirectories(const std::filesystem::path& path, enumerate_callback_t callback, bool allowDuplicates = false) override;
+        std::filesystem::path getNativePath(const std::filesystem::path& name) override;
     };
 
     // A layer that represents some path in the underlying file system as an entire FS.
@@ -146,6 +151,7 @@ namespace donut::vfs
         bool writeFile(const std::filesystem::path& name, const void* data, size_t size) override;
         int enumerateFiles(const std::filesystem::path& path, const std::vector<std::string>& extensions, enumerate_callback_t callback, bool allowDuplicates = false) override;
         int enumerateDirectories(const std::filesystem::path& path, enumerate_callback_t callback, bool allowDuplicates = false) override;
+        std::filesystem::path getNativePath(const std::filesystem::path& name) override;
     };
 
     // A virtual file system that allows mounting, or attaching, other VFS objects to paths.
@@ -167,6 +173,7 @@ namespace donut::vfs
         bool writeFile(const std::filesystem::path& name, const void* data, size_t size) override;
         int enumerateFiles(const std::filesystem::path& path, const std::vector<std::string>& extensions, enumerate_callback_t callback, bool allowDuplicates = false) override;
         int enumerateDirectories(const std::filesystem::path& path, enumerate_callback_t callback, bool allowDuplicates = false) override;
+        std::filesystem::path getNativePath(const std::filesystem::path& name) override;
     };
 
     std::string getFileSearchRegex(const std::filesystem::path& path, const std::vector<std::string>& extensions);
