@@ -65,7 +65,7 @@ using namespace donut::math;
 using namespace donut::vfs;
 using namespace donut::engine;
 
-static SceneLoadingStats g_LoadingStats;
+SceneLoadingStats Scene::g_LoadingStats;
 
 const SceneLoadingStats& Scene::GetLoadingStats()
 {

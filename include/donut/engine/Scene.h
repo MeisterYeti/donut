@@ -53,6 +53,8 @@ namespace donut::engine
     class Scene
     {
     protected:
+        static SceneLoadingStats g_LoadingStats;
+
         std::shared_ptr<vfs::IFileSystem> m_fs;
         std::shared_ptr<SceneTypeFactory> m_SceneTypeFactory;
         std::shared_ptr<TextureCache> m_TextureCache;
