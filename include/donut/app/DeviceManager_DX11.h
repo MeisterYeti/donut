@@ -76,6 +76,8 @@ public:
     void ReportLiveObjects() override;
     bool EnumerateAdapters(std::vector<donut::app::AdapterInfo>& outAdapters) override;
 
+    VideoMemoryInfo GetMemoryInfo() const override;
+    
     [[nodiscard]] nvrhi::GraphicsAPI GetGraphicsAPI() const override
     {
         return nvrhi::GraphicsAPI::D3D11;

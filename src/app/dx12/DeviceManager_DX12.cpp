@@ -152,7 +152,7 @@ bool DeviceManager_DX12::CreateInstanceInternal()
         }
     }
 
-    return true;
+	return true;
 }
 
 bool DeviceManager_DX12::EnumerateAdapters(std::vector<AdapterInfo>& outAdapters)
@@ -626,4 +626,28 @@ void DeviceManager_DX12::Shutdown()
 DeviceManager *DeviceManager::CreateD3D12(void)
 {
     return new DeviceManager_DX12();
+}
+
+
+VideoMemoryInfo DeviceManager_DX12::GetMemoryInfo() const {
+    VideoMemoryInfo videoMemoryInfo{};
+    int adapterIndex = m_DeviceParams.adapterIndex;
+    if (adapterIndex < 0)
+        adapterIndex = 0;
+
+    IDXGIAdapter3* adapter3;
+    if(FAILED(m_DxgiAdapter->QueryInterface(IID_PPV_ARGS(&adapter3))))
+    {
+        return videoMemoryInfo;
+    }
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO memoryInfo;
+    if(FAILED(adapter3->QueryVideoMemoryInfo(adapterIndex, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo)))
+    {
+        return videoMemoryInfo;
+    }
+
+    videoMemoryInfo.budget = memoryInfo.Budget;
+    videoMemoryInfo.currentUsage = memoryInfo.CurrentUsage;
+    return videoMemoryInfo;
 }

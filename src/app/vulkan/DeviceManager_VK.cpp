@@ -1260,3 +1260,31 @@ DeviceManager *DeviceManager::CreateVK()
 {
     return new DeviceManager_VK();
 }
+
+VideoMemoryInfo DeviceManager_VK::GetMemoryInfo() const {
+    VideoMemoryInfo videoMemoryInfo{};
+    if(!m_VulkanPhysicalDevice || !IsVulkanDeviceExtensionEnabled(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME))
+    {
+        return videoMemoryInfo;
+    }
+
+    auto memBudgetProps = vk::PhysicalDeviceMemoryBudgetPropertiesEXT();
+    auto memProps = vk::PhysicalDeviceMemoryProperties2();
+    memProps.pNext = &memBudgetProps;
+    m_VulkanPhysicalDevice.getMemoryProperties2(&memProps);
+    
+    videoMemoryInfo.budget = 0;
+    videoMemoryInfo.currentUsage = 0;
+
+    for(const auto& budget : memBudgetProps.heapBudget)
+    {
+        videoMemoryInfo.budget += budget;
+    }
+
+    for(const auto& usage : memBudgetProps.heapUsage)
+    {
+        videoMemoryInfo.currentUsage += usage;
+    }
+
+    return videoMemoryInfo;
+}

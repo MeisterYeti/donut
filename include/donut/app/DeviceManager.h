@@ -237,6 +237,12 @@ namespace donut::app
 #endif
     };
 
+    struct VideoMemoryInfo
+    {
+        uint64_t budget = 0;
+        uint64_t currentUsage = 0;
+    };
+
     class DeviceManager
     {
     public:
@@ -386,6 +392,9 @@ namespace donut::app
         virtual void GetEnabledVulkanInstanceExtensions(std::vector<std::string>& extensions) const { }
         virtual void GetEnabledVulkanDeviceExtensions(std::vector<std::string>& extensions) const { }
         virtual void GetEnabledVulkanLayers(std::vector<std::string>& layers) const { }
+
+        // Queries video memory info for the current device if available.
+        virtual VideoMemoryInfo GetMemoryInfo() const { return {}; }
 
         // GetFrameIndex cannot be used inside of these callbacks, hence the additional passing of frameID
         // Refer to AnimateRenderPresent implementation for more details
