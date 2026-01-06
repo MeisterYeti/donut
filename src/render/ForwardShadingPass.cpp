@@ -241,7 +241,7 @@ nvrhi::GraphicsPipelineHandle ForwardShadingPass::CreateGraphicsPipeline(Forward
     nvrhi::FramebufferInfo const& framebufferInfo)
 {
     nvrhi::GraphicsPipelineDesc pipelineDesc;
-    pipelineDesc.primType = key.bits.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
+    pipelineDesc.primType = key.drawPoints ? nvrhi::PrimitiveType::PointList : nvrhi::PrimitiveType::TriangleList;
     pipelineDesc.inputLayout = m_InputLayout;
     pipelineDesc.VS = m_VertexShader;
     pipelineDesc.GS = m_GeometryShader;
