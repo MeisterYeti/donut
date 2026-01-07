@@ -68,6 +68,7 @@ namespace donut::render
             uint32_t texCoordOffset = 0;
             uint32_t normalOffset = 0;
             uint32_t tangentOffset = 0;
+            uint32_t colorOffset = 0;
 
             Context()
             {

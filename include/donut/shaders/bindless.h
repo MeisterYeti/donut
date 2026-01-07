@@ -75,6 +75,7 @@ static const uint c_SizeOfTriangleIndices = 12;
 static const uint c_SizeOfPosition = 12;
 static const uint c_SizeOfTexcoord = 8;
 static const uint c_SizeOfNormal = 4;
+static const uint c_SizeOfColor = 4;
 static const uint c_SizeOfJointIndices = 8;
 static const uint c_SizeOfJointWeights = 16;
 static const uint c_SizeOfCurveRadius = 4;

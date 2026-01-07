@@ -59,6 +59,7 @@ struct GBufferPushConstants
     uint        texCoordOffset;
     uint        normalOffset;
     uint        tangentOffset;
+    uint        colorOffset;
 };
 
 #endif // GBUFFER_CB_H

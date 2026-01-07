@@ -86,6 +86,7 @@ void buffer_loads(
     float2 texCoord = asfloat(t_Vertices.Load2(g_Push.texCoordOffset + i_vertex * c_SizeOfTexcoord));
     uint packedNormal = t_Vertices.Load(g_Push.normalOffset + i_vertex * c_SizeOfNormal);
     uint packedTangent = t_Vertices.Load(g_Push.tangentOffset + i_vertex * c_SizeOfNormal);
+    uint packedColor = t_Vertices.Load(g_Push.colorOffset + i_vertex * c_SizeOfColor);
     float3 normal = Unpack_RGB8_SNORM(packedNormal);
     float4 tangent = Unpack_RGBA8_SNORM(packedTangent);
 
@@ -95,6 +96,7 @@ void buffer_loads(
     o_vtx.normal = mul(instance.transform, float4(normal, 0)).xyz;
     o_vtx.tangent.xyz = mul(instance.transform, float4(tangent.xyz, 0)).xyz;
     o_vtx.tangent.w = tangent.w;
+    o_vtx.color = Unpack_R8G8B8A8_UFLOAT(packedColor);
 
     float4 worldPos = float4(o_vtx.pos, 1.0);
     o_position = mul(worldPos, g_ForwardView.view.matWorldToClip);

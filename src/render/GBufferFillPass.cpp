@@ -382,6 +382,7 @@ void GBufferFillPass::SetupInputBuffers(GeometryPassContext& abstractContext, co
         context.texCoordOffset = uint32_t(buffers->getVertexBufferRange(VertexAttribute::TexCoord1).byteOffset);
         context.normalOffset = uint32_t(buffers->getVertexBufferRange(VertexAttribute::Normal).byteOffset);
         context.tangentOffset = uint32_t(buffers->getVertexBufferRange(VertexAttribute::Tangent).byteOffset);
+        context.colorOffset = uint32_t(buffers->getVertexBufferRange(VertexAttribute::Colors).byteOffset);
     }
 }
 
@@ -446,6 +447,7 @@ void GBufferFillPass::SetPushConstants(
     constants.texCoordOffset = context.texCoordOffset;
     constants.normalOffset = context.normalOffset;
     constants.tangentOffset = context.tangentOffset;
+    constants.colorOffset = context.colorOffset;
 
     commandList->setPushConstants(&constants, sizeof(constants));
 
